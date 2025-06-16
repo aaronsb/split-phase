@@ -298,9 +298,15 @@
                         <h3>3-Phase Grid Source</h3>
                         <canvas id="phasor-canvas"></canvas>
                         <div class="viz-labels">
-                            <div class="phase-label" style="color: #ff4444;">Phase A: 7200V</div>
-                            <div class="phase-label" style="color: #44ff44;">Phase B: 7200V</div>
-                            <div class="phase-label" style="color: #4444ff;">Phase C: 7200V</div>
+                            <div class="phase-label" style="color: #000;">Phase A: 7200V (Black)</div>
+                            <div class="phase-label" style="color: #ff4444;">Phase B: 7200V (Red)</div>
+                            <div class="phase-label" style="color: #4444ff;">Phase C: 7200V (Blue)</div>
+                        </div>
+                        <div class="phase-control" style="margin-top: 8px; text-align: center;">
+                            <label style="font-size: 11px; color: #ccc;">
+                                <input type="checkbox" id="show-phase-angle" style="margin-right: 5px;">
+                                Show Phase Angle
+                            </label>
                         </div>
                     </div>
                     

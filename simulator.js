@@ -43,6 +43,9 @@ class ACWaveformSimulator {
         // Split-phase settings
         this.splitPhaseMode = true;
         
+        // Phase visualization settings
+        this.showPhaseAngle = false;
+        
         // Tooltip settings
         this.detailedTooltips = false;
         
@@ -61,6 +64,12 @@ class ACWaveformSimulator {
         splitPhaseMode.addEventListener('change', (e) => {
             this.splitPhaseMode = e.target.checked;
             this.updateParameters();
+        });
+        
+        // Phase angle visualization control
+        const showPhaseAngle = document.getElementById('show-phase-angle');
+        showPhaseAngle.addEventListener('change', (e) => {
+            this.showPhaseAngle = e.target.checked;
         });
         
         // Frequency control
@@ -902,16 +911,21 @@ class ACWaveformSimulator {
         this.phasorCtx.lineTo(centerX, centerY + radius + 10);
         this.phasorCtx.stroke();
         
-        // Calculate phase angles (120° apart, rotating with time)
-        const baseAngle = this.time * 2 * Math.PI * this.frequency;
-        const phaseA = baseAngle;
-        const phaseB = baseAngle - (2 * Math.PI / 3);
-        const phaseC = baseAngle - (4 * Math.PI / 3);
+        // Static phase angles (120° apart, North American colors)
+        const phaseA = 0;                    // 0° (reference)
+        const phaseB = -2 * Math.PI / 3;     // -120°
+        const phaseC = -4 * Math.PI / 3;     // -240° (or +120°)
         
-        // Draw phasors
-        this.drawPhasor(centerX, centerY, radius, phaseA, '#ff4444', 'A');
-        this.drawPhasor(centerX, centerY, radius, phaseB, '#44ff44', 'B');
-        this.drawPhasor(centerX, centerY, radius, phaseC, '#4444ff', 'C');
+        // Draw static phasors with North American 3-phase colors
+        this.drawPhasor(centerX, centerY, radius, phaseA, '#000000', 'A'); // Black
+        this.drawPhasor(centerX, centerY, radius, phaseB, '#ff4444', 'B'); // Red
+        this.drawPhasor(centerX, centerY, radius, phaseC, '#4444ff', 'C'); // Blue
+        
+        // Draw rotating phase angle indicator if enabled
+        if (this.showPhaseAngle) {
+            const currentAngle = this.time * 2 * Math.PI * this.frequency;
+            this.drawPhaseAngleIndicator(centerX, centerY, radius * 0.8, currentAngle);
+        }
     }
     
     drawPhasor(centerX, centerY, radius, angle, color, label) {
@@ -948,6 +962,42 @@ class ACWaveformSimulator {
         this.phasorCtx.font = 'bold 14px Arial';
         this.phasorCtx.textAlign = 'center';
         this.phasorCtx.fillText(label, endX + 15 * Math.cos(angle), endY - 15 * Math.sin(angle) + 5);
+    }
+    
+    drawPhaseAngleIndicator(centerX, centerY, radius, angle) {
+        const endX = centerX + radius * Math.cos(angle);
+        const endY = centerY - radius * Math.sin(angle);
+        
+        // Draw rotating phase indicator line (orange)
+        this.phasorCtx.strokeStyle = '#ff9800';
+        this.phasorCtx.lineWidth = 2;
+        this.phasorCtx.beginPath();
+        this.phasorCtx.moveTo(centerX, centerY);
+        this.phasorCtx.lineTo(endX, endY);
+        this.phasorCtx.stroke();
+        
+        // Draw arrowhead
+        const arrowSize = 6;
+        const arrowAngle = Math.PI / 6;
+        this.phasorCtx.fillStyle = '#ff9800';
+        this.phasorCtx.beginPath();
+        this.phasorCtx.moveTo(endX, endY);
+        this.phasorCtx.lineTo(
+            endX - arrowSize * Math.cos(angle - arrowAngle),
+            endY + arrowSize * Math.sin(angle - arrowAngle)
+        );
+        this.phasorCtx.lineTo(
+            endX - arrowSize * Math.cos(angle + arrowAngle),
+            endY + arrowSize * Math.sin(angle + arrowAngle)
+        );
+        this.phasorCtx.closePath();
+        this.phasorCtx.fill();
+        
+        // Draw small circle at center
+        this.phasorCtx.fillStyle = '#ff9800';
+        this.phasorCtx.beginPath();
+        this.phasorCtx.arc(centerX, centerY, 3, 0, 2 * Math.PI);
+        this.phasorCtx.fill();
     }
     
     drawTransformerDiagram() {
