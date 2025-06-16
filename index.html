@@ -282,6 +282,185 @@
         .transformer-label {
             color: #aaa;
         }
+        
+        /* Voltage Statistics Panel */
+        .voltage-statistics {
+            background: #2a2a2a;
+            border-radius: 10px;
+            padding: 20px;
+            border: 2px solid #333;
+            margin-top: 20px;
+        }
+        
+        .stats-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .stats-header h3 {
+            margin: 0;
+            color: #4CAF50;
+            font-size: 18px;
+        }
+        
+        .stats-reset-btn {
+            background: #ff9800;
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .stats-reset-btn:hover {
+            background: #f57c00;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 20px;
+        }
+        
+        .stats-panel {
+            background: #333;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        
+        .stats-section {
+            margin-bottom: 20px;
+        }
+        
+        .stats-section:last-child {
+            margin-bottom: 0;
+        }
+        
+        .stats-section h4 {
+            margin: 0 0 12px 0;
+            color: #4CAF50;
+            font-size: 14px;
+            border-bottom: 1px solid #444;
+            padding-bottom: 5px;
+        }
+        
+        .voltage-extremes {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .extreme-item {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 8px;
+            align-items: center;
+            font-size: 12px;
+        }
+        
+        .extreme-label {
+            color: #ccc;
+            font-weight: bold;
+        }
+        
+        .extreme-value {
+            color: #4CAF50;
+            font-weight: bold;
+            text-align: right;
+        }
+        
+        .extreme-time {
+            color: #aaa;
+            font-size: 10px;
+            text-align: right;
+        }
+        
+        .transient-counter {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        
+        .counter-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+        }
+        
+        .counter-label {
+            color: #ccc;
+        }
+        
+        .counter-value {
+            color: #ffaa00;
+            font-weight: bold;
+            background: #444;
+            padding: 2px 8px;
+            border-radius: 3px;
+            min-width: 25px;
+            text-align: center;
+        }
+        
+        .transient-history-panel {
+            background: #333;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        
+        .history-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .history-controls label {
+            color: #ccc;
+            font-size: 12px;
+            margin: 0;
+        }
+        
+        .history-controls select {
+            background: #444;
+            color: #fff;
+            border: 1px solid #666;
+            border-radius: 3px;
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+        
+        #transient-history-canvas {
+            width: 100%;
+            height: 150px;
+            background: #1a1a1a;
+            border: 1px solid #555;
+            border-radius: 4px;
+            margin-bottom: 8px;
+        }
+        
+        .history-legend {
+            display: flex;
+            justify-content: space-around;
+            font-size: 10px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            color: #ccc;
+        }
+        
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
     </style>
 </head>
 <body>
@@ -299,6 +478,77 @@
                     </div>
                 </div>
                 <canvas id="waveform-canvas"></canvas>
+                
+                <!-- Voltage Statistics and Transient History -->
+                <div class="voltage-statistics">
+                    <div class="stats-header">
+                        <div class="tooltip-container">
+                            <h3>Voltage Statistics & Transient History</h3>
+                            <div class="tooltip">
+                                <div class="tooltip-title">Historical Voltage Analysis</div>
+                                <div class="tooltip-description">Tracks voltage extremes, transient events, and power quality over time for equipment protection analysis.</div>
+                                <div class="tooltip-technical">Records maximum and minimum voltage peaks during faults, motor starts, and other transient events. Essential for sizing surge protectors, understanding equipment stress, and diagnosing power quality issues. Transient history shows how voltage disturbances propagate over milliseconds to seconds - critical for understanding why sensitive electronics fail during electrical events.</div>
+                            </div>
+                        </div>
+                        <button id="reset-stats-btn" class="stats-reset-btn">Reset Statistics</button>
+                    </div>
+                    
+                    <div class="stats-grid">
+                        <div class="stats-panel">
+                            <div class="stats-section">
+                                <h4>Voltage Extremes</h4>
+                                <div class="voltage-extremes">
+                                    <div class="extreme-item">
+                                        <span class="extreme-label">Peak High:</span>
+                                        <span class="extreme-value" id="peak-high">+170 V</span>
+                                        <span class="extreme-time" id="peak-high-time">0.00s</span>
+                                    </div>
+                                    <div class="extreme-item">
+                                        <span class="extreme-label">Peak Low:</span>
+                                        <span class="extreme-value" id="peak-low">-170 V</span>
+                                        <span class="extreme-time" id="peak-low-time">0.00s</span>
+                                    </div>
+                                    <div class="extreme-item">
+                                        <span class="extreme-label">Max RMS:</span>
+                                        <span class="extreme-value" id="max-rms">120.2 V</span>
+                                        <span class="extreme-time" id="max-rms-time">0.00s</span>
+                                    </div>
+                                    <div class="extreme-item">
+                                        <span class="extreme-label">Min RMS:</span>
+                                        <span class="extreme-value" id="min-rms">120.2 V</span>
+                                        <span class="extreme-time" id="min-rms-time">0.00s</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                        </div>
+                        
+                        <div class="transient-history-panel">
+                            <div class="history-controls">
+                                <label for="history-timebase">Time Scale:</label>
+                                <select id="history-timebase">
+                                    <option value="100">100ms</option>
+                                    <option value="500">500ms</option>
+                                    <option value="1000" selected>1 second</option>
+                                    <option value="5000">5 seconds</option>
+                                    <option value="10000">10 seconds</option>
+                                    <option value="30000">30 seconds</option>
+                                </select>
+                            </div>
+                            <canvas id="transient-history-canvas"></canvas>
+                            <div class="history-legend">
+                                <div class="legend-item">
+                                    <span class="legend-color" style="background: #4CAF50;"></span>
+                                    <span>RMS Voltage</span>
+                                </div>
+                                <div class="legend-item">
+                                    <span class="legend-color" style="background: #ffaa00;"></span>
+                                    <span>Transient Events</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 
                 <!-- Grid and Transformer Visualizations -->
                 <div class="sub-visualizations">

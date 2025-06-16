@@ -8,6 +8,8 @@ class ACWaveformSimulator {
         this.phasorCtx = this.phasorCanvas.getContext('2d');
         this.transformerCanvas = document.getElementById('transformer-canvas');
         this.transformerCtx = this.transformerCanvas.getContext('2d');
+        this.transientCanvas = document.getElementById('transient-history-canvas');
+        this.transientCtx = this.transientCanvas.getContext('2d');
         
         // Set canvas resolutions
         this.canvas.width = 800;
@@ -16,6 +18,8 @@ class ACWaveformSimulator {
         this.phasorCanvas.height = 400;
         this.transformerCanvas.width = 400;
         this.transformerCanvas.height = 400;
+        this.transientCanvas.width = 600;
+        this.transientCanvas.height = 150;
         
         // Simulation parameters
         this.frequency = 60; // Hz
@@ -53,6 +57,30 @@ class ACWaveformSimulator {
         // Waveform history for trail effect
         this.waveformHistory = [];
         this.maxHistoryLength = 400;
+        
+        // Voltage statistics tracking
+        this.voltageStats = {
+            peakHigh: this.amplitude,
+            peakHighTime: 0,
+            peakLow: -this.amplitude,
+            peakLowTime: 0,
+            maxRMS: 120.2,
+            maxRMSTime: 0,
+            minRMS: 120.2,
+            minRMSTime: 0
+        };
+        
+        // Transient history tracking
+        this.transientHistory = [];
+        this.maxTransientHistory = 1000; // Maximum data points to store
+        this.historyTimebase = 1000; // Current timebase in milliseconds
+        this.lastTransientUpdate = 0;
+        this.transientUpdateInterval = 16; // Update every ~16ms (60 FPS)
+        
+        // Previous measurements for transient event detection
+        this.lastMeasuredRMS = 120.2;
+        this.lastMeasuredL1 = 0;
+        this.lastMeasuredL2 = 0;
         
         this.initializeControls();
         this.initializeTooltips();
@@ -179,6 +207,16 @@ class ACWaveformSimulator {
         // Reset button
         document.getElementById('reset-btn').addEventListener('click', () => {
             this.resetWaveform();
+        });
+        
+        // Statistics reset button
+        document.getElementById('reset-stats-btn').addEventListener('click', () => {
+            this.resetStatistics();
+        });
+        
+        // History timebase control
+        document.getElementById('history-timebase').addEventListener('change', (e) => {
+            this.historyTimebase = parseInt(e.target.value);
         });
         
         // Trigger controls
@@ -331,23 +369,26 @@ class ACWaveformSimulator {
                 
             case 'arc-fault-l1':
                 if (isL1) {
-                    // Irregular high-frequency noise
-                    faultEffect = this.amplitude * fault.intensity * 0.4 * 
-                                (Math.random() - 0.5) * Math.sin(2 * Math.PI * 500 * faultElapsed);
+                    // More controlled arc fault - limit random component
+                    const randomComponent = (Math.random() - 0.5) * 0.5; // Limit random to ±0.25
+                    faultEffect = this.amplitude * fault.intensity * 0.2 * 
+                                (randomComponent + 0.5 * Math.sin(2 * Math.PI * 500 * faultElapsed));
                 }
                 break;
                 
             case 'arc-fault-l2':
                 if (isL2) {
-                    faultEffect = this.amplitude * fault.intensity * 0.4 * 
-                                (Math.random() - 0.5) * Math.sin(2 * Math.PI * 500 * faultElapsed);
+                    const randomComponent = (Math.random() - 0.5) * 0.5; // Limit random to ±0.25
+                    faultEffect = this.amplitude * fault.intensity * 0.2 * 
+                                (randomComponent + 0.5 * Math.sin(2 * Math.PI * 500 * faultElapsed));
                 }
                 break;
                 
             case 'arc-fault-240v':
-                // Chaotic arcing between L1 and L2
-                faultEffect = this.amplitude * fault.intensity * 0.3 * 
-                            (Math.random() - 0.5) * Math.sin(2 * Math.PI * 300 * faultElapsed);
+                // More controlled chaotic arcing between L1 and L2
+                const randomComponent = (Math.random() - 0.5) * 0.3; // Limit random to ±0.15
+                faultEffect = this.amplitude * fault.intensity * 0.15 * 
+                            (randomComponent + 0.7 * Math.sin(2 * Math.PI * 300 * faultElapsed));
                 break;
                 
             case 'imbalanced-240v':
@@ -971,6 +1012,8 @@ class ACWaveformSimulator {
         this.drawWaveform();
         this.drawPhasorDiagram();
         this.drawTransformerDiagram();
+        this.updateVoltageStatistics();
+        this.drawTransientHistory();
         this.updateParameters();
         this.updateActiveFaultsList();
         
@@ -1345,6 +1388,301 @@ class ACWaveformSimulator {
         this.transformerCtx.font = `bold ${16 * scale}px Arial`;
         this.transformerCtx.textAlign = 'center';
         this.transformerCtx.fillText(label, x, y + 85 * scale); // Moved down 35 units total (from 50 to 85)
+    }
+    
+    resetStatistics() {
+        this.voltageStats = {
+            peakHigh: this.amplitude,
+            peakHighTime: this.time,
+            peakLow: -this.amplitude,
+            peakLowTime: this.time,
+            maxRMS: this.amplitude / Math.sqrt(2),
+            maxRMSTime: this.time,
+            minRMS: this.amplitude / Math.sqrt(2),
+            minRMSTime: this.time
+        };
+        this.transientHistory = [];
+        
+        // Reset previous measurements
+        this.lastMeasuredRMS = this.amplitude / Math.sqrt(2);
+        this.lastMeasuredL1 = 0;
+        this.lastMeasuredL2 = 0;
+    }
+    
+    updateVoltageStatistics() {
+        // Calculate current instantaneous values
+        const currentL1 = this.calculateWaveformValue(this.time, 0);
+        const currentL2 = this.calculateWaveformValue(this.time, Math.PI);
+        
+        // Simple, stable RMS calculation based on actual amplitude
+        // This tracks the effective RMS voltage including fault effects
+        const baseRMS = this.amplitude / Math.sqrt(2);
+        
+        // For displaying in transient history, use a simple approach
+        let currentRMS = baseRMS;
+        
+        // If we have active faults, adjust RMS based on fault type
+        if (this.activeFaults.size > 0) {
+            let faultAdjustment = 0;
+            for (const [faultId, fault] of this.activeFaults) {
+                switch (fault.type) {
+                    case 'neutral-loss':
+                        faultAdjustment += baseRMS * fault.intensity * 0.5; // RMS increases
+                        break;
+                    case 'phase-imbalance':
+                        faultAdjustment -= baseRMS * fault.intensity * 0.2; // RMS decreases
+                        break;
+                    case 'motor-start-l1':
+                    case 'motor-start-l2':
+                    case 'motor-start-240v':
+                    case 'ac-compressor':
+                        faultAdjustment -= baseRMS * fault.intensity * 0.3; // Voltage sag
+                        break;
+                    case 'harmonic-distortion':
+                        faultAdjustment += baseRMS * fault.intensity * 0.1; // Slight increase
+                        break;
+                    default:
+                        // For other faults, minimal RMS impact
+                        faultAdjustment += baseRMS * fault.intensity * 0.05;
+                        break;
+                }
+            }
+            currentRMS = Math.max(baseRMS + faultAdjustment, baseRMS * 0.3); // Don't go below 30%
+        }
+        
+        // Track peak extremes with strict limits to prevent arc fault noise from dominating
+        const maxReasonablePeak = this.amplitude * 1.5; // Limit to 1.5x nominal to avoid arc fault noise
+        const minReasonablePeak = -this.amplitude * 1.5;
+        
+        // Only update peaks if we're not in an arc fault, or if the value is genuinely significant
+        const hasArcFault = Array.from(this.activeFaults.values()).some(fault => 
+            fault.type.includes('arc-fault'));
+        
+        if (!hasArcFault) {
+            // Normal operation - track all peaks within reasonable limits
+            if (currentL1 > this.voltageStats.peakHigh && currentL1 <= maxReasonablePeak) {
+                this.voltageStats.peakHigh = currentL1;
+                this.voltageStats.peakHighTime = this.time;
+            }
+            if (currentL1 < this.voltageStats.peakLow && currentL1 >= minReasonablePeak) {
+                this.voltageStats.peakLow = currentL1;
+                this.voltageStats.peakLowTime = this.time;
+            }
+            if (currentL2 > this.voltageStats.peakHigh && currentL2 <= maxReasonablePeak) {
+                this.voltageStats.peakHigh = currentL2;
+                this.voltageStats.peakHighTime = this.time;
+            }
+            if (currentL2 < this.voltageStats.peakLow && currentL2 >= minReasonablePeak) {
+                this.voltageStats.peakLow = currentL2;
+                this.voltageStats.peakLowTime = this.time;
+            }
+        } else {
+            // During arc faults, only track truly extreme values that exceed arc noise
+            const arcThreshold = this.amplitude * 1.8; // Must be significantly higher than normal
+            if (currentL1 > arcThreshold && currentL1 > this.voltageStats.peakHigh) {
+                this.voltageStats.peakHigh = currentL1;
+                this.voltageStats.peakHighTime = this.time;
+            }
+            if (currentL1 < -arcThreshold && currentL1 < this.voltageStats.peakLow) {
+                this.voltageStats.peakLow = currentL1;
+                this.voltageStats.peakLowTime = this.time;
+            }
+            if (currentL2 > arcThreshold && currentL2 > this.voltageStats.peakHigh) {
+                this.voltageStats.peakHigh = currentL2;
+                this.voltageStats.peakHighTime = this.time;
+            }
+            if (currentL2 < -arcThreshold && currentL2 < this.voltageStats.peakLow) {
+                this.voltageStats.peakLow = currentL2;
+                this.voltageStats.peakLowTime = this.time;
+            }
+        }
+        
+        // Track RMS extremes with reasonable bounds
+        const maxReasonableRMS = this.amplitude / Math.sqrt(2) * 1.5; // 150% of nominal
+        const minReasonableRMS = this.amplitude / Math.sqrt(2) * 0.5; // 50% of nominal
+        
+        if (currentRMS > this.voltageStats.maxRMS && currentRMS <= maxReasonableRMS) {
+            this.voltageStats.maxRMS = currentRMS;
+            this.voltageStats.maxRMSTime = this.time;
+        }
+        if (currentRMS < this.voltageStats.minRMS && currentRMS >= minReasonableRMS) {
+            this.voltageStats.minRMS = currentRMS;
+            this.voltageStats.minRMSTime = this.time;
+        }
+        
+        // Store current values for tracking (counters removed for simplicity)
+        this.lastMeasuredRMS = currentRMS;
+        this.lastMeasuredL1 = currentL1;
+        this.lastMeasuredL2 = currentL2;
+        
+        // Update transient history data 
+        if (performance.now() - this.lastTransientUpdate > this.transientUpdateInterval) {
+            this.transientHistory.push({
+                time: this.time,
+                rms: currentRMS,  // Use the calculated stable RMS
+                peakL1: Math.abs(currentL1), // Store peak magnitudes for display
+                peakL2: Math.abs(currentL2),
+                activeFaults: this.activeFaults.size, // Just count active faults
+                timestamp: performance.now()
+            });
+            
+            // Limit history size
+            if (this.transientHistory.length > this.maxTransientHistory) {
+                this.transientHistory.shift();
+            }
+            
+            this.lastTransientUpdate = performance.now();
+        }
+        
+        // Update display elements
+        this.updateStatsDisplay();
+    }
+    
+    updateStatsDisplay() {
+        document.getElementById('peak-high').textContent = `+${Math.round(this.voltageStats.peakHigh)} V`;
+        document.getElementById('peak-high-time').textContent = `${this.voltageStats.peakHighTime.toFixed(2)}s`;
+        document.getElementById('peak-low').textContent = `${Math.round(this.voltageStats.peakLow)} V`;
+        document.getElementById('peak-low-time').textContent = `${this.voltageStats.peakLowTime.toFixed(2)}s`;
+        document.getElementById('max-rms').textContent = `${this.voltageStats.maxRMS.toFixed(1)} V`;
+        document.getElementById('max-rms-time').textContent = `${this.voltageStats.maxRMSTime.toFixed(2)}s`;
+        document.getElementById('min-rms').textContent = `${this.voltageStats.minRMS.toFixed(1)} V`;
+        document.getElementById('min-rms-time').textContent = `${this.voltageStats.minRMSTime.toFixed(2)}s`;
+    }
+    
+    drawTransientHistory() {
+        const width = this.transientCanvas.width;
+        const height = this.transientCanvas.height;
+        
+        // Clear canvas
+        this.transientCtx.fillStyle = '#1a1a1a';
+        this.transientCtx.fillRect(0, 0, width, height);
+        
+        if (this.transientHistory.length < 2) return;
+        
+        // Filter data based on current timebase
+        const now = performance.now();
+        const filteredData = this.transientHistory.filter(point => 
+            now - point.timestamp <= this.historyTimebase
+        );
+        
+        if (filteredData.length < 2) return;
+        
+        // Calculate scales
+        const timeRange = this.historyTimebase / 1000; // Convert to seconds
+        const voltageMin = 80;  // Minimum voltage to display
+        const voltageMax = 180; // Maximum voltage to display
+        const voltageRange = voltageMax - voltageMin;
+        
+        // Draw grid
+        this.drawTransientGrid(width, height, voltageMin, voltageMax, timeRange);
+        
+        // Draw RMS voltage line
+        this.transientCtx.strokeStyle = '#4CAF50';
+        this.transientCtx.lineWidth = 2;
+        this.transientCtx.beginPath();
+        
+        for (let i = 0; i < filteredData.length; i++) {
+            const point = filteredData[i];
+            const x = (i / (filteredData.length - 1)) * width;
+            const y = height - ((point.rms - voltageMin) / voltageRange) * height;
+            
+            if (i === 0) {
+                this.transientCtx.moveTo(x, y);
+            } else {
+                this.transientCtx.lineTo(x, y);
+            }
+        }
+        this.transientCtx.stroke();
+        
+        // Peak values removed for clarity
+        
+        // Highlight transient events
+        this.highlightTransientEvents(filteredData, width, height, voltageMin, voltageRange);
+    }
+    
+    drawTransientGrid(width, height, voltageMin, voltageMax, timeRange) {
+        this.transientCtx.strokeStyle = '#333';
+        this.transientCtx.lineWidth = 1;
+        
+        // Horizontal voltage lines
+        const voltageSteps = 5;
+        for (let i = 0; i <= voltageSteps; i++) {
+            const voltage = voltageMin + (voltageMax - voltageMin) * (i / voltageSteps);
+            const y = height - (i / voltageSteps) * height;
+            
+            this.transientCtx.beginPath();
+            this.transientCtx.moveTo(0, y);
+            this.transientCtx.lineTo(width, y);
+            this.transientCtx.stroke();
+            
+            // Voltage labels
+            this.transientCtx.fillStyle = '#666';
+            this.transientCtx.font = '10px Arial';
+            this.transientCtx.textAlign = 'left';
+            this.transientCtx.fillText(`${Math.round(voltage)}V`, 2, y - 2);
+        }
+        
+        // Vertical time lines - simplified and fixed
+        const timeSteps = 5; // Always use 5 divisions for clean appearance
+        
+        for (let i = 0; i <= timeSteps; i++) {
+            const x = (i / timeSteps) * width;
+            
+            this.transientCtx.beginPath();
+            this.transientCtx.moveTo(x, 0);
+            this.transientCtx.lineTo(x, height);
+            this.transientCtx.stroke();
+            
+            // Time labels based on the selected timebase
+            const timeValue = (timeRange * i / timeSteps);
+            let timeLabel;
+            
+            if (timeRange < 1) {
+                // Show in milliseconds for sub-second ranges
+                timeLabel = `${Math.round(timeValue * 1000)}ms`;
+            } else {
+                // Show in seconds for 1s and above
+                if (timeValue === 0) {
+                    timeLabel = '0s';
+                } else if (timeValue >= 1) {
+                    timeLabel = `${Math.round(timeValue)}s`;
+                } else {
+                    timeLabel = `${timeValue.toFixed(1)}s`;
+                }
+            }
+            
+            this.transientCtx.fillStyle = '#666';
+            this.transientCtx.font = '10px Arial';
+            this.transientCtx.textAlign = 'center';
+            this.transientCtx.fillText(timeLabel, x, height - 2);
+        }
+    }
+    
+    highlightTransientEvents(data, width, height, voltageMin, voltageRange) {
+        const nominalRMS = 120.2;
+        const sagThreshold = nominalRMS * 0.9;
+        const swellThreshold = nominalRMS * 1.1;
+        
+        for (let i = 0; i < data.length; i++) {
+            const point = data[i];
+            const x = (i / (data.length - 1)) * width;
+            
+            // Highlight voltage sags (orange)
+            if (point.rms < sagThreshold) {
+                this.transientCtx.fillStyle = '#ffaa00';
+                this.transientCtx.globalAlpha = 0.3;
+                this.transientCtx.fillRect(x - 1, 0, 2, height);
+            }
+            
+            // Highlight voltage swells (red)
+            if (point.rms > swellThreshold) {
+                this.transientCtx.fillStyle = '#ff4444';
+                this.transientCtx.globalAlpha = 0.3;
+                this.transientCtx.fillRect(x - 1, 0, 2, height);
+            }
+        }
+        
+        this.transientCtx.globalAlpha = 1.0;
     }
 }
 
