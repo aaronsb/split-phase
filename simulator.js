@@ -3,9 +3,19 @@ class ACWaveformSimulator {
         this.canvas = document.getElementById('waveform-canvas');
         this.ctx = this.canvas.getContext('2d');
         
-        // Set canvas resolution
+        // Sub-visualization canvases
+        this.phasorCanvas = document.getElementById('phasor-canvas');
+        this.phasorCtx = this.phasorCanvas.getContext('2d');
+        this.transformerCanvas = document.getElementById('transformer-canvas');
+        this.transformerCtx = this.transformerCanvas.getContext('2d');
+        
+        // Set canvas resolutions
         this.canvas.width = 800;
         this.canvas.height = 400;
+        this.phasorCanvas.width = 400;
+        this.phasorCanvas.height = 400;
+        this.transformerCanvas.width = 400;
+        this.transformerCanvas.height = 400;
         
         // Simulation parameters
         this.frequency = 60; // Hz
@@ -17,6 +27,7 @@ class ACWaveformSimulator {
         this.time = 0;
         this.animationSpeed = 1;
         this.isPlaying = true;
+        this.lastFrameTime = performance.now();
         
         // Fault simulation state
         this.activeFaults = new Map(); // faultId -> {type, startTime, duration, intensity, persistent}
@@ -26,12 +37,15 @@ class ACWaveformSimulator {
         // Trigger settings
         this.triggerMode = 'auto'; // 'none', 'auto', 'manual'
         this.triggerLevel = 0;
-        this.manualTriggerPosition = 0; // degrees
+        this.manualTriggerVoltage = 0; // voltage for manual trigger
         this.lastTriggerTime = 0;
         this.triggerDetected = false;
         
         // Split-phase settings
         this.splitPhaseMode = true;
+        
+        // Phase visualization settings
+        this.showPhaseAngle = false;
         
         // Tooltip settings
         this.detailedTooltips = false;
@@ -42,7 +56,11 @@ class ACWaveformSimulator {
         
         this.initializeControls();
         this.initializeTooltips();
-        this.animate();
+        // Start animation with initial timestamp
+        requestAnimationFrame((time) => {
+            this.lastFrameTime = time;
+            this.animate(time);
+        });
     }
     
     initializeControls() {
@@ -51,6 +69,12 @@ class ACWaveformSimulator {
         splitPhaseMode.addEventListener('change', (e) => {
             this.splitPhaseMode = e.target.checked;
             this.updateParameters();
+        });
+        
+        // Phase angle visualization control
+        const showPhaseAngle = document.getElementById('show-phase-angle');
+        showPhaseAngle.addEventListener('change', (e) => {
+            this.showPhaseAngle = e.target.checked;
         });
         
         // Frequency control
@@ -132,13 +156,15 @@ class ACWaveformSimulator {
         const speedSlider = document.getElementById('sim-speed');
         const speedValue = document.getElementById('speed-value');
         speedSlider.addEventListener('input', (e) => {
-            this.animationSpeed = parseFloat(e.target.value);
-            speedValue.textContent = `${this.animationSpeed.toFixed(2)}x`;
+            // Convert logarithmic slider (0-100) to speed (0.001-1.0)
+            const sliderValue = parseInt(e.target.value);
+            this.animationSpeed = this.sliderToSpeed(sliderValue);
+            speedValue.textContent = `${this.animationSpeed.toFixed(3)}x`;
         });
         
         // Speed preset buttons
         document.getElementById('ultra-slow-btn').addEventListener('click', () => {
-            this.setSpeed(0.01);
+            this.setSpeed(0.001);
         });
         
         document.getElementById('slow-btn').addEventListener('click', () => {
@@ -149,9 +175,6 @@ class ACWaveformSimulator {
             this.setSpeed(1.0);
         });
         
-        document.getElementById('fast-btn').addEventListener('click', () => {
-            this.setSpeed(3.0);
-        });
         
         // Reset button
         document.getElementById('reset-btn').addEventListener('click', () => {
@@ -170,7 +193,7 @@ class ACWaveformSimulator {
                     
                     // Show/hide appropriate controls
                     if (this.triggerMode === 'manual') {
-                        triggerLevelControl.style.display = 'none';
+                        triggerLevelControl.style.display = 'block';
                         manualTriggerControl.style.display = 'block';
                     } else if (this.triggerMode === 'auto') {
                         triggerLevelControl.style.display = 'block';
@@ -193,8 +216,8 @@ class ACWaveformSimulator {
         const manualTrigger = document.getElementById('manual-trigger');
         const manualTriggerValue = document.getElementById('manual-trigger-value');
         manualTrigger.addEventListener('input', (e) => {
-            this.manualTriggerPosition = parseInt(e.target.value);
-            manualTriggerValue.textContent = `${this.manualTriggerPosition}°`;
+            this.manualTriggerVoltage = parseInt(e.target.value);
+            manualTriggerValue.textContent = `${this.manualTriggerVoltage} V`;
         });
         
         document.getElementById('play-pause-btn').addEventListener('click', (e) => {
@@ -290,14 +313,18 @@ class ACWaveformSimulator {
                 
             case 'resistive-switch-l1':
                 if (isL1 && faultElapsed < 0.05) {
-                    faultEffect = this.amplitude * fault.intensity * 0.3 * 
+                    // Realistic switching transient - fast decay over 50ms
+                    const dampingFactor = Math.exp(-faultElapsed * 40); // Fast decay
+                    faultEffect = this.amplitude * fault.intensity * 0.3 * dampingFactor * 
                                 Math.sin(2 * Math.PI * 1000 * faultElapsed);
                 }
                 break;
                 
             case 'resistive-switch-l2':
                 if (isL2 && faultElapsed < 0.05) {
-                    faultEffect = this.amplitude * fault.intensity * 0.3 * 
+                    // Realistic switching transient - fast decay over 50ms
+                    const dampingFactor = Math.exp(-faultElapsed * 40); // Fast decay
+                    faultEffect = this.amplitude * fault.intensity * 0.3 * dampingFactor * 
                                 Math.sin(2 * Math.PI * 1000 * faultElapsed);
                 }
                 break;
@@ -469,6 +496,27 @@ class ACWaveformSimulator {
         return currentCycle * period;
     }
     
+    findManualTriggerTime() {
+        // Find the most recent rising edge crossing of manual trigger voltage
+        const period = 1 / this.frequency;
+        const currentCycle = Math.floor(this.time / period);
+        
+        // Calculate when the sine wave crosses the manual trigger voltage on rising edge
+        const effectiveOffset = this.chassisGrounded ? 0 : this.dcOffset;
+        const adjustedTriggerLevel = this.manualTriggerVoltage - effectiveOffset;
+        
+        // Sine wave crosses trigger level at: sin(2πft) = adjustedTriggerLevel/amplitude
+        if (Math.abs(adjustedTriggerLevel) <= this.amplitude) {
+            const phase = Math.asin(adjustedTriggerLevel / this.amplitude);
+            // Rising edge occurs at phase (not π - phase)
+            const triggerTimeInCycle = phase / (2 * Math.PI * this.frequency);
+            return currentCycle * period + triggerTimeInCycle;
+        }
+        
+        // If trigger level is outside amplitude, trigger on zero crossing
+        return currentCycle * period;
+    }
+    
     drawWaveformSegment(referenceTime, timeWindow, centerY, phaseOffset = 0) {
         const width = this.canvas.width;
         const pixelsPerSecond = width / timeWindow;
@@ -481,20 +529,56 @@ class ACWaveformSimulator {
             const triggerTime = this.findTriggerTime();
             startTime = triggerTime - timeWindow / 2;
         } else if (this.triggerMode === 'manual') {
-            // Manual trigger - use manual position to determine display offset
-            const manualPhaseRadians = (this.manualTriggerPosition * Math.PI) / 180;
-            const period = 1 / this.frequency;
-            const phaseTimeOffset = manualPhaseRadians / (2 * Math.PI * this.frequency);
-            startTime = referenceTime - timeWindow / 2 + phaseTimeOffset;
+            // Manual trigger - find trigger point based on manual voltage setting
+            const triggerTime = this.findManualTriggerTime();
+            startTime = triggerTime - timeWindow / 2;
         } else {
             // No trigger - free-running mode
             startTime = referenceTime - timeWindow;
         }
         
         this.ctx.beginPath();
+        
+        // Calculate sampling resolution based on simulation speed
+        const pixelTimeStep = timeWindow / width;
+        
+        // Adjust resolution based on simulation speed:
+        // Slower speeds = more time to compute = higher resolution
+        // Faster speeds = less time to compute = lower resolution  
+        let resolutionMultiplier;
+        if (this.animationSpeed >= 0.5) {
+            resolutionMultiplier = 1; // Real-time: pixel resolution only
+        } else if (this.animationSpeed >= 0.1) {
+            resolutionMultiplier = 2; // 2x pixel resolution
+        } else if (this.animationSpeed >= 0.01) {
+            resolutionMultiplier = 5; // 5x pixel resolution
+        } else {
+            resolutionMultiplier = 10; // Very slow: 10x pixel resolution
+        }
+        
+        const timeStep = pixelTimeStep / resolutionMultiplier;
+        
+        const totalSamples = Math.ceil(timeWindow / timeStep);
+        
+        // Performance safeguard: scale max samples with animation speed
+        // Slower speeds can handle more samples since frames are less frequent
+        const baseSamples = 2000; // Base limit for real-time
+        const maxSamples = Math.min(baseSamples / this.animationSpeed, 20000); // Scale with speed, cap at 20k
+        const effectiveSamples = Math.min(totalSamples, maxSamples);
+        const effectiveTimeStep = timeWindow / effectiveSamples;
+        
+        // Pre-calculate voltage samples
+        const voltageData = [];
+        for (let i = 0; i <= effectiveSamples; i++) {
+            const t = startTime + (i * effectiveTimeStep);
+            voltageData.push(this.calculateWaveformValue(t, phaseOffset));
+        }
+        
+        // Draw waveform by sampling voltage data at pixel positions
         for (let x = 0; x < width; x++) {
-            const t = startTime + (x / pixelsPerSecond);
-            const voltage = this.calculateWaveformValue(t, phaseOffset);
+            const timeAtPixel = (x / pixelsPerSecond);
+            const sampleIndex = Math.floor(timeAtPixel / effectiveTimeStep);
+            const voltage = voltageData[Math.min(sampleIndex, voltageData.length - 1)];
             const y = centerY - (voltage * voltageScale);
             
             if (x === 0) {
@@ -624,7 +708,7 @@ class ACWaveformSimulator {
         document.getElementById('max-negative').textContent = `${maxNegative} V`;
         document.getElementById('ground-state').textContent = this.chassisGrounded ? 'Bonded' : 'Floating';
         document.getElementById('sim-time').textContent = `${this.time.toFixed(2)}s`;
-        document.getElementById('time-rate').textContent = `${this.animationSpeed.toFixed(2)}x`;
+        document.getElementById('time-rate').textContent = `${this.animationSpeed.toFixed(3)}x`;
         
         // Safety alerts
         this.updateSafetyAlerts(effectiveOffset, maxPositive, maxNegative);
@@ -691,19 +775,20 @@ class ACWaveformSimulator {
     }
     
     getFaultDuration(faultType) {
+        // Realistic fault durations based on actual electrical behavior
         switch (faultType) {
             case 'motor-start-l1':
             case 'motor-start-l2':
             case 'motor-start-240v':
             case 'ac-compressor':
-                return 0.5; // Motor startup transients
+                return 0.5; // Motor startup transients (realistic duration)
             case 'resistive-switch-l1':
             case 'resistive-switch-l2':
-                return 0.05; // Brief switching transient
+                return 0.05; // Brief switching transient (realistic duration)
             case 'arc-fault-l1':
             case 'arc-fault-l2':
             case 'arc-fault-240v':
-                return 0.3; // Arc duration
+                return 0.3; // Arc duration (realistic)
             case 'ground-fault':
                 return 2; // Until protective device trips
             case 'harmonic-distortion':
@@ -824,14 +909,37 @@ class ACWaveformSimulator {
         }
     }
     
+    // Convert logarithmic slider value (0-100) to speed (0.001-1.0)
+    sliderToSpeed(sliderValue) {
+        // Logarithmic scale: 0.001 to 1.0
+        // log(0.001) = -6.907, log(1.0) = 0
+        // Map 0-100 to -6.907 to 0
+        const minLog = Math.log(0.001);
+        const maxLog = Math.log(1.0);
+        const scale = (maxLog - minLog) / 100;
+        return Math.exp(minLog + scale * sliderValue);
+    }
+    
+    // Convert speed (0.001-1.0) to logarithmic slider value (0-100)
+    speedToSlider(speed) {
+        const minLog = Math.log(0.001);
+        const maxLog = Math.log(1.0);
+        const scale = (maxLog - minLog) / 100;
+        return Math.round((Math.log(speed) - minLog) / scale);
+    }
+    
     setSpeed(speed) {
-        this.animationSpeed = speed;
-        document.getElementById('sim-speed').value = speed;
-        document.getElementById('speed-value').textContent = `${speed.toFixed(2)}x`;
+        // Cap speed at 1.0x (real-time)
+        this.animationSpeed = Math.min(speed, 1.0);
+        // Update slider to corresponding logarithmic position
+        document.getElementById('sim-speed').value = this.speedToSlider(this.animationSpeed);
+        // Use 3 decimal places for better precision display
+        document.getElementById('speed-value').textContent = `${this.animationSpeed.toFixed(3)}x`;
     }
     
     resetWaveform() {
         this.time = 0;
+        this.lastFrameTime = performance.now();
         this.activeFaults.clear();
         this.waveformHistory = [];
         document.getElementById('dc-offset').value = 0;
@@ -844,22 +952,399 @@ class ACWaveformSimulator {
         this.updateActiveFaultsList();
     }
     
-    animate() {
+    animate(currentTime) {
         if (this.isPlaying) {
-            this.time += 0.016 * this.animationSpeed; // ~60 FPS
+            // Calculate actual elapsed time since last frame
+            const deltaTime = (currentTime - this.lastFrameTime) / 1000; // Convert to seconds
+            this.lastFrameTime = currentTime;
+            
+            // Increment simulation time based on actual elapsed time and speed
+            this.time += deltaTime * this.animationSpeed;
             
             // Store waveform history for trail effect
             if (this.waveformHistory.length >= this.maxHistoryLength) {
                 this.waveformHistory.shift();
             }
-            this.waveformHistory.push(this.time - 0.016);
+            this.waveformHistory.push(this.time - deltaTime);
         }
         
         this.drawWaveform();
+        this.drawPhasorDiagram();
+        this.drawTransformerDiagram();
         this.updateParameters();
         this.updateActiveFaultsList();
         
-        requestAnimationFrame(() => this.animate());
+        requestAnimationFrame((time) => this.animate(time));
+    }
+    
+    drawPhasorDiagram() {
+        const width = this.phasorCanvas.width;
+        const height = this.phasorCanvas.height;
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const radius = 120;
+        
+        // Clear canvas
+        this.phasorCtx.fillStyle = '#1a1a1a';
+        this.phasorCtx.fillRect(0, 0, width, height);
+        
+        // Draw grid background like main visualization
+        this.drawPhasorGrid();
+        
+        // Draw angle markers (0°, 90°, 180°, 270°)
+        this.drawAngleMarkers(centerX, centerY, radius);
+        
+        // Draw circle
+        this.phasorCtx.strokeStyle = '#444';
+        this.phasorCtx.lineWidth = 2;
+        this.phasorCtx.beginPath();
+        this.phasorCtx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+        this.phasorCtx.stroke();
+        
+        // Static phase angles (120° apart, North American colors)
+        const phaseA = 0;                    // 0° (reference)
+        const phaseB = -2 * Math.PI / 3;     // -120°
+        const phaseC = -4 * Math.PI / 3;     // -240° (or +120°)
+        
+        // Draw static phasors with North American 3-phase colors
+        this.drawPhasor(centerX, centerY, radius, phaseA, '#cccccc', 'A'); // Light Gray
+        this.drawPhasor(centerX, centerY, radius, phaseB, '#ff4444', 'B'); // Red
+        this.drawPhasor(centerX, centerY, radius, phaseC, '#4444ff', 'C'); // Blue
+        
+        // Draw rotating phase angle indicator if enabled
+        if (this.showPhaseAngle) {
+            // Use the same time calculation as the main waveform
+            const currentAngle = this.time * 2 * Math.PI * this.frequency;
+            this.drawPhaseAngleIndicator(centerX, centerY, radius * 0.8, currentAngle);
+            
+            // Display current angle in upper right corner
+            const degrees = ((currentAngle * 180 / Math.PI) % 360 + 360) % 360;
+            this.phasorCtx.fillStyle = '#4CAF50';
+            this.phasorCtx.font = 'bold 16px Arial';
+            this.phasorCtx.textAlign = 'right';
+            this.phasorCtx.fillText(`${degrees.toFixed(1)}°`, width - 10, 25);
+        }
+    }
+    
+    drawPhasor(centerX, centerY, radius, angle, color, label) {
+        const endX = centerX + radius * Math.cos(angle);
+        const endY = centerY - radius * Math.sin(angle);
+        
+        // Draw phasor line
+        this.phasorCtx.strokeStyle = color;
+        this.phasorCtx.lineWidth = 3;
+        this.phasorCtx.beginPath();
+        this.phasorCtx.moveTo(centerX, centerY);
+        this.phasorCtx.lineTo(endX, endY);
+        this.phasorCtx.stroke();
+        
+        // Draw arrowhead
+        const arrowSize = 8;
+        const arrowAngle = Math.PI / 6;
+        this.phasorCtx.fillStyle = color;
+        this.phasorCtx.beginPath();
+        this.phasorCtx.moveTo(endX, endY);
+        this.phasorCtx.lineTo(
+            endX - arrowSize * Math.cos(angle - arrowAngle),
+            endY + arrowSize * Math.sin(angle - arrowAngle)
+        );
+        this.phasorCtx.lineTo(
+            endX - arrowSize * Math.cos(angle + arrowAngle),
+            endY + arrowSize * Math.sin(angle + arrowAngle)
+        );
+        this.phasorCtx.closePath();
+        this.phasorCtx.fill();
+        
+        // Draw label
+        this.phasorCtx.fillStyle = color;
+        this.phasorCtx.font = 'bold 14px Arial';
+        this.phasorCtx.textAlign = 'center';
+        this.phasorCtx.fillText(label, endX + 15 * Math.cos(angle), endY - 15 * Math.sin(angle) + 5);
+    }
+    
+    drawPhaseAngleIndicator(centerX, centerY, radius, angle) {
+        const endX = centerX + radius * Math.cos(angle);
+        const endY = centerY - radius * Math.sin(angle);
+        
+        // Draw rotating phase indicator line (orange)
+        this.phasorCtx.strokeStyle = '#ff9800';
+        this.phasorCtx.lineWidth = 2;
+        this.phasorCtx.beginPath();
+        this.phasorCtx.moveTo(centerX, centerY);
+        this.phasorCtx.lineTo(endX, endY);
+        this.phasorCtx.stroke();
+        
+        // Draw arrowhead
+        const arrowSize = 6;
+        const arrowAngle = Math.PI / 6;
+        this.phasorCtx.fillStyle = '#ff9800';
+        this.phasorCtx.beginPath();
+        this.phasorCtx.moveTo(endX, endY);
+        this.phasorCtx.lineTo(
+            endX - arrowSize * Math.cos(angle - arrowAngle),
+            endY + arrowSize * Math.sin(angle - arrowAngle)
+        );
+        this.phasorCtx.lineTo(
+            endX - arrowSize * Math.cos(angle + arrowAngle),
+            endY + arrowSize * Math.sin(angle + arrowAngle)
+        );
+        this.phasorCtx.closePath();
+        this.phasorCtx.fill();
+        
+        // Draw small circle at center
+        this.phasorCtx.fillStyle = '#ff9800';
+        this.phasorCtx.beginPath();
+        this.phasorCtx.arc(centerX, centerY, 3, 0, 2 * Math.PI);
+        this.phasorCtx.fill();
+    }
+    
+    drawPhasorGrid() {
+        const width = this.phasorCanvas.width;
+        const height = this.phasorCanvas.height;
+        
+        this.phasorCtx.strokeStyle = '#333';
+        this.phasorCtx.lineWidth = 1;
+        
+        // Horizontal grid lines
+        for (let i = 0; i <= 10; i++) {
+            const y = (height / 10) * i;
+            this.phasorCtx.beginPath();
+            this.phasorCtx.moveTo(0, y);
+            this.phasorCtx.lineTo(width, y);
+            this.phasorCtx.stroke();
+        }
+        
+        // Vertical grid lines
+        for (let i = 0; i <= 10; i++) {
+            const x = (width / 10) * i;
+            this.phasorCtx.beginPath();
+            this.phasorCtx.moveTo(x, 0);
+            this.phasorCtx.lineTo(x, height);
+            this.phasorCtx.stroke();
+        }
+    }
+    
+    drawAngleMarkers(centerX, centerY, radius) {
+        const angles = [0, 90, 180, 270];
+        const labels = ['0°', '90°', '180°', '270°'];
+        
+        this.phasorCtx.strokeStyle = '#666';
+        this.phasorCtx.lineWidth = 1;
+        this.phasorCtx.fillStyle = '#888';
+        this.phasorCtx.font = '12px Arial';
+        this.phasorCtx.textAlign = 'center';
+        
+        angles.forEach((deg, index) => {
+            const angle = (deg * Math.PI) / 180;
+            const x1 = centerX + (radius + 10) * Math.cos(angle);
+            const y1 = centerY - (radius + 10) * Math.sin(angle);
+            const x2 = centerX + (radius + 25) * Math.cos(angle);
+            const y2 = centerY - (radius + 25) * Math.sin(angle);
+            
+            // Draw tick mark
+            this.phasorCtx.beginPath();
+            this.phasorCtx.moveTo(x1, y1);
+            this.phasorCtx.lineTo(x2, y2);
+            this.phasorCtx.stroke();
+            
+            // Draw label
+            const labelX = centerX + (radius + 35) * Math.cos(angle);
+            const labelY = centerY - (radius + 35) * Math.sin(angle) + 4;
+            this.phasorCtx.fillText(labels[index], labelX, labelY);
+        });
+    }
+    
+    drawTransformerDiagram() {
+        const width = this.transformerCanvas.width;
+        const height = this.transformerCanvas.height;
+        
+        // Clear canvas
+        this.transformerCtx.fillStyle = '#1a1a1a';
+        this.transformerCtx.fillRect(0, 0, width, height);
+        
+        // Draw grid background like main visualization
+        this.drawTransformerGrid();
+        
+        // Scale up positions for larger canvas
+        const scale = width / 300;
+        const centerY = height / 2 + 20 * scale; // Shift down by 20 scale units
+        
+        // Draw three transformers with scaled positions
+        this.drawSingleTransformer(70 * scale, centerY, 'T1');
+        this.drawSingleTransformer(150 * scale, centerY, 'T2');
+        this.drawSingleTransformer(230 * scale, centerY, 'T3');
+        
+        // Draw 3-phase distribution lines (7200V) - each phase in its own color
+        this.transformerCtx.lineWidth = 4; // Thicker for grid side
+        
+        // Calculate distribution line position (shift down by 20 scale units)
+        const distributionY = 40 * scale + 20 * scale;
+        
+        // Phase A (light gray like phasor diagram)
+        this.transformerCtx.strokeStyle = '#cccccc';
+        this.transformerCtx.beginPath();
+        this.transformerCtx.moveTo(10 * scale, distributionY - 5 * scale);
+        this.transformerCtx.lineTo(280 * scale, distributionY - 5 * scale);
+        this.transformerCtx.stroke();
+        
+        // Phase B (red)
+        this.transformerCtx.strokeStyle = '#ff4444';
+        this.transformerCtx.beginPath();
+        this.transformerCtx.moveTo(10 * scale, distributionY);
+        this.transformerCtx.lineTo(280 * scale, distributionY);
+        this.transformerCtx.stroke();
+        
+        // Phase C (blue)
+        this.transformerCtx.strokeStyle = '#4444ff';
+        this.transformerCtx.beginPath();
+        this.transformerCtx.moveTo(10 * scale, distributionY + 5 * scale);
+        this.transformerCtx.lineTo(280 * scale, distributionY + 5 * scale);
+        this.transformerCtx.stroke();
+        
+        // Connections to transformers with phase labels
+        const phases = ['P1', 'P2', 'P3'];
+        const phaseColors = ['#cccccc', '#ff4444', '#4444ff']; // Match the distribution line colors
+        const xPositions = [70 * scale, 150 * scale, 230 * scale];
+        xPositions.forEach((x, index) => {
+            // Two connection lines from distribution to transformer - match phase colors
+            this.transformerCtx.strokeStyle = phaseColors[index];
+            this.transformerCtx.lineWidth = 4; // Keep grid side thickness
+            
+            // Get the correct Y position for each phase line (using the shifted positions)
+            const phaseYPositions = [distributionY - 5 * scale, distributionY, distributionY + 5 * scale]; // Gray, Red, Blue
+            
+            // Left line
+            this.transformerCtx.beginPath();
+            this.transformerCtx.moveTo(x - 15 * scale, phaseYPositions[index]);
+            this.transformerCtx.lineTo(x - 15 * scale, centerY - 20 * scale);
+            this.transformerCtx.stroke();
+            
+            // Right line
+            this.transformerCtx.beginPath();
+            this.transformerCtx.moveTo(x + 15 * scale, phaseYPositions[index]);
+            this.transformerCtx.lineTo(x + 15 * scale, centerY - 20 * scale);
+            this.transformerCtx.stroke();
+            
+            // Add phase labels above the connection points (shifted down)
+            this.transformerCtx.fillStyle = '#fff';
+            this.transformerCtx.font = `bold ${14 * scale}px Arial`;
+            this.transformerCtx.textAlign = 'center';
+            this.transformerCtx.fillText(phases[index], x, distributionY - 10 * scale);
+        });
+        
+        // Low voltage output lines (240V split-phase)
+        this.transformerCtx.lineWidth = 2; // Thinner for subscriber side
+        
+        xPositions.forEach(x => {
+            // L1 (hot - left line, red)
+            this.transformerCtx.strokeStyle = '#ff0000'; // Red for L1
+            this.transformerCtx.beginPath();
+            this.transformerCtx.moveTo(x - 15 * scale, centerY + 20 * scale); // Start at secondary coil level
+            this.transformerCtx.lineTo(x - 15 * scale, centerY + 70 * scale);
+            this.transformerCtx.stroke();
+            
+            // L2 (hot - right line, gray)
+            this.transformerCtx.strokeStyle = '#888888'; // Gray for L2
+            this.transformerCtx.beginPath();
+            this.transformerCtx.moveTo(x + 15 * scale, centerY + 20 * scale); // Start at secondary coil level
+            this.transformerCtx.lineTo(x + 15 * scale, centerY + 70 * scale);
+            this.transformerCtx.stroke();
+            
+            // Neutral (center tap)
+            this.transformerCtx.strokeStyle = '#ffffff'; // White for neutral
+            this.transformerCtx.beginPath();
+            this.transformerCtx.moveTo(x, centerY + 20 * scale); // Start at secondary coil level
+            this.transformerCtx.lineTo(x, centerY + 70 * scale); // Extend down to match L1/L2 length
+            this.transformerCtx.stroke();
+        });
+        
+        // Labels with larger, readable text
+        this.transformerCtx.fillStyle = '#fff';
+        this.transformerCtx.font = `${16 * scale}px Arial`;
+        this.transformerCtx.textAlign = 'center';
+        this.transformerCtx.fillText('7200V Grid Distribution', width / 2, 20 * scale);
+        this.transformerCtx.fillText('240V Split Phase', width / 2, height - 15 * scale); // Moved down 15 units, removed "Service"
+    }
+    
+    drawTransformerGrid() {
+        const width = this.transformerCanvas.width;
+        const height = this.transformerCanvas.height;
+        
+        this.transformerCtx.strokeStyle = '#333';
+        this.transformerCtx.lineWidth = 1;
+        
+        // Horizontal grid lines
+        for (let i = 0; i <= 10; i++) {
+            const y = (height / 10) * i;
+            this.transformerCtx.beginPath();
+            this.transformerCtx.moveTo(0, y);
+            this.transformerCtx.lineTo(width, y);
+            this.transformerCtx.stroke();
+        }
+        
+        // Vertical grid lines
+        for (let i = 0; i <= 10; i++) {
+            const x = (width / 10) * i;
+            this.transformerCtx.beginPath();
+            this.transformerCtx.moveTo(x, 0);
+            this.transformerCtx.lineTo(x, height);
+            this.transformerCtx.stroke();
+        }
+    }
+    
+    drawSingleTransformer(x, y, label) {
+        const scale = this.transformerCanvas.width / 300;
+        
+        // Determine which transformer this is based on x position to get correct phase color
+        const xPositions = [70 * scale, 150 * scale, 230 * scale];
+        const phaseColors = ['#cccccc', '#ff4444', '#4444ff']; // Gray, Red, Blue
+        let transformerIndex = 0;
+        
+        // Find which transformer this is
+        for (let i = 0; i < xPositions.length; i++) {
+            if (Math.abs(x - xPositions[i]) < 1) {
+                transformerIndex = i;
+                break;
+            }
+        }
+        
+        // Primary coil (top) - match phase color
+        this.transformerCtx.strokeStyle = phaseColors[transformerIndex];
+        this.transformerCtx.lineWidth = 3;
+        this.transformerCtx.beginPath();
+        this.transformerCtx.arc(x - 8 * scale, y - 20 * scale, 6 * scale, 0, 2 * Math.PI);
+        this.transformerCtx.arc(x, y - 20 * scale, 6 * scale, 0, 2 * Math.PI);
+        this.transformerCtx.arc(x + 8 * scale, y - 20 * scale, 6 * scale, 0, 2 * Math.PI);
+        this.transformerCtx.stroke();
+        
+        // Secondary coil (bottom) - white
+        this.transformerCtx.strokeStyle = '#ffffff';
+        this.transformerCtx.lineWidth = 3;
+        this.transformerCtx.beginPath();
+        this.transformerCtx.arc(x - 8 * scale, y + 20 * scale, 6 * scale, 0, 2 * Math.PI);
+        this.transformerCtx.arc(x, y + 20 * scale, 6 * scale, 0, 2 * Math.PI);
+        this.transformerCtx.arc(x + 8 * scale, y + 20 * scale, 6 * scale, 0, 2 * Math.PI);
+        this.transformerCtx.stroke();
+        
+        // Core (center line)
+        this.transformerCtx.strokeStyle = '#888';
+        this.transformerCtx.lineWidth = 4;
+        this.transformerCtx.beginPath();
+        this.transformerCtx.moveTo(x - 20 * scale, y);
+        this.transformerCtx.lineTo(x + 20 * scale, y);
+        this.transformerCtx.stroke();
+        
+        // Center tap indicator
+        this.transformerCtx.fillStyle = '#2196F3';
+        this.transformerCtx.beginPath();
+        this.transformerCtx.arc(x, y + 20 * scale, 4 * scale, 0, 2 * Math.PI);
+        this.transformerCtx.fill();
+        
+        // Label
+        this.transformerCtx.fillStyle = '#fff';
+        this.transformerCtx.font = `bold ${16 * scale}px Arial`;
+        this.transformerCtx.textAlign = 'center';
+        this.transformerCtx.fillText(label, x, y + 85 * scale); // Moved down 35 units total (from 50 to 85)
     }
 }
 

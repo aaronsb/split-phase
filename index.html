@@ -233,6 +233,55 @@
             border-top: 1px solid #444;
             padding-top: 5px;
         }
+        
+        /* Sub-visualizations */
+        .sub-visualizations {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .viz-panel {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        
+        .viz-panel h3 {
+            margin: 0 0 10px 0;
+            color: #4CAF50;
+            font-size: 14px;
+            text-align: center;
+        }
+        
+        .viz-panel canvas {
+            width: 100%;
+            height: auto;
+            aspect-ratio: 1 / 1;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 4px;
+        }
+        
+        .viz-labels {
+            margin-top: 8px;
+            text-align: center;
+        }
+        
+        .phase-label, .transformer-label {
+            font-size: 11px;
+            margin: 2px 0;
+        }
+        
+        .phase-label {
+            font-weight: bold;
+        }
+        
+        .transformer-label {
+            color: #aaa;
+        }
     </style>
 </head>
 <body>
@@ -241,8 +290,58 @@
         
         <div class="simulator-grid">
             <div class="waveform-section">
-                <h2>Split-Phase Visualization</h2>
+                <div class="tooltip-container">
+                    <h2>Split-Phase Visualization</h2>
+                    <div class="tooltip">
+                        <div class="tooltip-title">Split-Phase Electrical System Output</div>
+                        <div class="tooltip-description">Real-time oscilloscope view of 240V/120V split-phase power delivered to your home or RV.</div>
+                        <div class="tooltip-technical">This shows the actual electrical waveforms you get from ONE distribution transformer (like T1, T2, or T3). The green L1 and orange L2 are "hot" conductors that are 180° out of phase, giving you 240V between them and 120V from each to neutral (white). This is the final step in the power delivery chain - what actually powers your home, RV, or business after traveling from power plants through high-voltage transmission lines and being stepped down by distribution transformers.</div>
+                    </div>
+                </div>
                 <canvas id="waveform-canvas"></canvas>
+                
+                <!-- Grid and Transformer Visualizations -->
+                <div class="sub-visualizations">
+                    <div class="viz-panel">
+                        <div class="tooltip-container">
+                            <h3>3-Phase Grid Source</h3>
+                            <div class="tooltip">
+                                <div class="tooltip-title">3-Phase Power Generation and Transmission</div>
+                                <div class="tooltip-description">Shows the 3-phase electrical power as it comes from power plants through high-voltage transmission lines.</div>
+                                <div class="tooltip-technical">Power plants generate electricity in 3 phases (A, B, C) that are 120° apart for maximum efficiency. This 3-phase power travels hundreds of miles on high-voltage transmission lines (69kV-765kV) to substations. At distribution voltage (typically 7200V), the three phases feed distribution transformers in neighborhoods. Each phase powers different transformers to balance the electrical load across the grid. This phasor diagram shows how the three phases relate to each other - they're perfectly balanced and create a smooth, efficient power delivery system.</div>
+                            </div>
+                        </div>
+                        <canvas id="phasor-canvas"></canvas>
+                        <div class="viz-labels">
+                            <div class="phase-label" style="color: #cccccc;">Phase A: 7200V (Gray)</div>
+                            <div class="phase-label" style="color: #ff4444;">Phase B: 7200V (Red)</div>
+                            <div class="phase-label" style="color: #4444ff;">Phase C: 7200V (Blue)</div>
+                        </div>
+                        <div class="phase-control" style="margin-top: 8px; text-align: center;">
+                            <label style="font-size: 11px; color: #ccc;">
+                                <input type="checkbox" id="show-phase-angle" style="margin-right: 5px;">
+                                Show Phase Angle
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="viz-panel">
+                        <div class="tooltip-container">
+                            <h3>Distribution Transformers</h3>
+                            <div class="tooltip">
+                                <div class="tooltip-title">Neighborhood Distribution System</div>
+                                <div class="tooltip-description">Shows how 3-phase grid power is converted to split-phase residential and commercial service.</div>
+                                <div class="tooltip-technical">Each distribution transformer takes ONE phase from the 3-phase grid (7200V) and steps it down to split-phase service (240V/120V). The transformer has a center-tapped secondary winding that creates two 120V "hot" legs (L1 and L2) that are 180° out of phase, plus a neutral. This gives homes both 120V (hot to neutral) for lights and outlets, and 240V (hot to hot) for large appliances like dryers and air conditioners. Multiple transformers in a neighborhood are fed from different phases (A, B, C) to balance the electrical load. The main split-phase visualization shows the output from just ONE of these transformers.</div>
+                            </div>
+                        </div>
+                        <canvas id="transformer-canvas"></canvas>
+                        <div class="viz-labels">
+                            <div class="transformer-label">Distribution → Service</div>
+                            <div class="transformer-label">Center-Tapped Secondary</div>
+                            <div class="transformer-label">P1, P2, P3 → T1, T2, T3</div>
+                        </div>
+                    </div>
+                </div>
             </div>
             
             <div class="controls-section">
@@ -403,39 +502,38 @@
                     </div>
                     <div class="control-item tooltip-container" id="trigger-level-control">
                         <label for="trigger-level">Trigger Level: <span id="trigger-level-value" class="value-display">0 V</span></label>
-                        <input type="range" id="trigger-level" min="-50" max="50" value="0" step="5">
+                        <input type="range" id="trigger-level" min="-100" max="100" value="0" step="5">
                         <div class="tooltip">
-                            <div class="tooltip-title">Auto Trigger Level</div>
-                            <div class="tooltip-description">Voltage level where auto trigger locks the display.</div>
-                            <div class="tooltip-technical">Trigger occurs on rising edge when waveform crosses this voltage. 0V = zero crossing trigger. Useful for studying specific voltage thresholds or DC offset effects on triggering.</div>
+                            <div class="tooltip-title">Trigger Level Control</div>
+                            <div class="tooltip-description">Voltage level where trigger locks the display (Auto) or sets trigger point (Manual).</div>
+                            <div class="tooltip-technical">Auto Mode: Trigger occurs on rising edge when waveform crosses this voltage. Manual Mode: Sets the voltage reference point for manual trigger control. Range: ±100V to handle peak voltages up to 300V. 0V = zero crossing trigger. Useful for studying specific voltage thresholds, DC offset effects, or isolating fault conditions at specific voltage levels.</div>
                         </div>
                     </div>
                     <div class="control-item tooltip-container" id="manual-trigger-control" style="display: none;">
-                        <label for="manual-trigger">Manual Trigger Position: <span id="manual-trigger-value" class="value-display">0°</span></label>
-                        <input type="range" id="manual-trigger" min="-180" max="180" value="0" step="1">
+                        <label for="manual-trigger">Manual Trigger Voltage: <span id="manual-trigger-value" class="value-display">0 V</span></label>
+                        <input type="range" id="manual-trigger" min="-100" max="100" value="0" step="1">
                         <div style="font-size: 10px; color: #aaa; margin-top: 5px;">
-                            Move slider to verify real-time simulation
+                            Adjust trigger voltage like a real oscilloscope
                         </div>
                         <div class="tooltip">
-                            <div class="tooltip-title">Manual Trigger Position</div>
-                            <div class="tooltip-description">Manually control the phase position of the displayed waveform.</div>
-                            <div class="tooltip-technical">Adjusts display phase from -180° to +180°. Proves real-time simulation - move slider and waveform shifts instantly. 0° = sine wave positive-going zero crossing at center. Use to examine specific waveform features or fault conditions at precise phase angles.</div>
+                            <div class="tooltip-title">Manual Trigger Voltage</div>
+                            <div class="tooltip-description">Set the exact voltage level for manual triggering like a real oscilloscope.</div>
+                            <div class="tooltip-technical">Range: ±100V to handle systems up to 300V peak. Trigger locks display when waveform crosses this voltage on rising edge. Move slider to see immediate response - proves real-time simulation. Use to examine specific voltage levels during faults, startup transients, or normal operation. Essential for troubleshooting voltage-sensitive equipment issues.</div>
                         </div>
                     </div>
                     <div class="control-item tooltip-container">
-                        <label for="sim-speed">Time Base: <span id="speed-value" class="value-display">1.0x</span></label>
-                        <input type="range" id="sim-speed" min="0.01" max="5" value="1" step="0.01">
+                        <label for="sim-speed">Simulation Speed: <span id="speed-value" class="value-display">1.000x</span></label>
+                        <input type="range" id="sim-speed" min="0" max="100" value="100" step="1">
                         <div class="tooltip">
-                            <div class="tooltip-title">Simulation Time Base</div>
-                            <div class="tooltip-description">Controls the speed of the simulation relative to real-time.</div>
-                            <div class="tooltip-technical">1.0x = real-time. 0.01x = ultra-slow motion (1% speed) for detailed fault analysis. 5x = 5x faster for observing long-term behaviors. Allows studying transients, startup sequences, and fault progression at different time scales.</div>
+                            <div class="tooltip-title">Simulation Speed Control (Logarithmic)</div>
+                            <div class="tooltip-description">Controls the speed of the entire simulation relative to real-time using a logarithmic scale.</div>
+                            <div class="tooltip-technical">Logarithmic scale from 0.001x to 1.0x for better control at slow speeds. 1.0x = real-time speed. 0.001x = ultra-slow motion (0.1% speed, 1 rotation per 16.7 seconds) for detailed educational demonstrations. 0.01x = very slow motion for fault analysis. 0.1x = slow motion for observing transients. Most of the slider range is dedicated to educationally useful slow speeds.</div>
                         </div>
                     </div>
                     <div style="display: flex; gap: 5px; margin-top: 10px;">
-                        <button id="ultra-slow-btn" style="font-size: 12px; padding: 5px 8px;">0.01x</button>
+                        <button id="ultra-slow-btn" style="font-size: 12px; padding: 5px 8px;">0.001x</button>
                         <button id="slow-btn" style="font-size: 12px; padding: 5px 8px;">0.1x</button>
                         <button id="normal-btn" style="font-size: 12px; padding: 5px 8px;">1x</button>
-                        <button id="fast-btn" style="font-size: 12px; padding: 5px 8px;">3x</button>
                     </div>
                 </div>
             </div>
