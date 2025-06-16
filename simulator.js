@@ -3,9 +3,19 @@ class ACWaveformSimulator {
         this.canvas = document.getElementById('waveform-canvas');
         this.ctx = this.canvas.getContext('2d');
         
-        // Set canvas resolution
+        // Sub-visualization canvases
+        this.phasorCanvas = document.getElementById('phasor-canvas');
+        this.phasorCtx = this.phasorCanvas.getContext('2d');
+        this.transformerCanvas = document.getElementById('transformer-canvas');
+        this.transformerCtx = this.transformerCanvas.getContext('2d');
+        
+        // Set canvas resolutions
         this.canvas.width = 800;
         this.canvas.height = 400;
+        this.phasorCanvas.width = 300;
+        this.phasorCanvas.height = 200;
+        this.transformerCanvas.width = 300;
+        this.transformerCanvas.height = 200;
         
         // Simulation parameters
         this.frequency = 60; // Hz
@@ -856,10 +866,193 @@ class ACWaveformSimulator {
         }
         
         this.drawWaveform();
+        this.drawPhasorDiagram();
+        this.drawTransformerDiagram();
         this.updateParameters();
         this.updateActiveFaultsList();
         
         requestAnimationFrame(() => this.animate());
+    }
+    
+    drawPhasorDiagram() {
+        const width = this.phasorCanvas.width;
+        const height = this.phasorCanvas.height;
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const radius = 60;
+        
+        // Clear canvas
+        this.phasorCtx.fillStyle = '#1a1a1a';
+        this.phasorCtx.fillRect(0, 0, width, height);
+        
+        // Draw circle
+        this.phasorCtx.strokeStyle = '#444';
+        this.phasorCtx.lineWidth = 1;
+        this.phasorCtx.beginPath();
+        this.phasorCtx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+        this.phasorCtx.stroke();
+        
+        // Draw axes
+        this.phasorCtx.strokeStyle = '#666';
+        this.phasorCtx.lineWidth = 1;
+        this.phasorCtx.beginPath();
+        this.phasorCtx.moveTo(centerX - radius - 10, centerY);
+        this.phasorCtx.lineTo(centerX + radius + 10, centerY);
+        this.phasorCtx.moveTo(centerX, centerY - radius - 10);
+        this.phasorCtx.lineTo(centerX, centerY + radius + 10);
+        this.phasorCtx.stroke();
+        
+        // Calculate phase angles (120° apart, rotating with time)
+        const baseAngle = this.time * 2 * Math.PI * this.frequency;
+        const phaseA = baseAngle;
+        const phaseB = baseAngle - (2 * Math.PI / 3);
+        const phaseC = baseAngle - (4 * Math.PI / 3);
+        
+        // Draw phasors
+        this.drawPhasor(centerX, centerY, radius, phaseA, '#ff4444', 'A');
+        this.drawPhasor(centerX, centerY, radius, phaseB, '#44ff44', 'B');
+        this.drawPhasor(centerX, centerY, radius, phaseC, '#4444ff', 'C');
+    }
+    
+    drawPhasor(centerX, centerY, radius, angle, color, label) {
+        const endX = centerX + radius * Math.cos(angle);
+        const endY = centerY - radius * Math.sin(angle);
+        
+        // Draw phasor line
+        this.phasorCtx.strokeStyle = color;
+        this.phasorCtx.lineWidth = 3;
+        this.phasorCtx.beginPath();
+        this.phasorCtx.moveTo(centerX, centerY);
+        this.phasorCtx.lineTo(endX, endY);
+        this.phasorCtx.stroke();
+        
+        // Draw arrowhead
+        const arrowSize = 8;
+        const arrowAngle = Math.PI / 6;
+        this.phasorCtx.fillStyle = color;
+        this.phasorCtx.beginPath();
+        this.phasorCtx.moveTo(endX, endY);
+        this.phasorCtx.lineTo(
+            endX - arrowSize * Math.cos(angle - arrowAngle),
+            endY + arrowSize * Math.sin(angle - arrowAngle)
+        );
+        this.phasorCtx.lineTo(
+            endX - arrowSize * Math.cos(angle + arrowAngle),
+            endY + arrowSize * Math.sin(angle + arrowAngle)
+        );
+        this.phasorCtx.closePath();
+        this.phasorCtx.fill();
+        
+        // Draw label
+        this.phasorCtx.fillStyle = color;
+        this.phasorCtx.font = 'bold 14px Arial';
+        this.phasorCtx.textAlign = 'center';
+        this.phasorCtx.fillText(label, endX + 15 * Math.cos(angle), endY - 15 * Math.sin(angle) + 5);
+    }
+    
+    drawTransformerDiagram() {
+        const width = this.transformerCanvas.width;
+        const height = this.transformerCanvas.height;
+        
+        // Clear canvas
+        this.transformerCtx.fillStyle = '#1a1a1a';
+        this.transformerCtx.fillRect(0, 0, width, height);
+        
+        // Draw three transformers
+        this.drawSingleTransformer(70, height / 2, 'T1');
+        this.drawSingleTransformer(150, height / 2, 'T2');
+        this.drawSingleTransformer(230, height / 2, 'T3');
+        
+        // Draw connection lines from grid
+        this.transformerCtx.strokeStyle = '#666';
+        this.transformerCtx.lineWidth = 2;
+        
+        // High voltage lines (7200V)
+        this.transformerCtx.beginPath();
+        this.transformerCtx.moveTo(10, 40);
+        this.transformerCtx.lineTo(280, 40);
+        this.transformerCtx.stroke();
+        
+        // Connections to transformers
+        [70, 150, 230].forEach(x => {
+            this.transformerCtx.beginPath();
+            this.transformerCtx.moveTo(x, 40);
+            this.transformerCtx.lineTo(x, 60);
+            this.transformerCtx.stroke();
+        });
+        
+        // Low voltage output lines (240V split-phase)
+        this.transformerCtx.strokeStyle = '#4CAF50';
+        this.transformerCtx.lineWidth = 2;
+        
+        [70, 150, 230].forEach(x => {
+            // L1 (hot)
+            this.transformerCtx.beginPath();
+            this.transformerCtx.moveTo(x - 15, 120);
+            this.transformerCtx.lineTo(x - 15, 160);
+            this.transformerCtx.stroke();
+            
+            // L2 (hot)
+            this.transformerCtx.beginPath();
+            this.transformerCtx.moveTo(x + 15, 120);
+            this.transformerCtx.lineTo(x + 15, 160);
+            this.transformerCtx.stroke();
+            
+            // Neutral (center tap)
+            this.transformerCtx.strokeStyle = '#2196F3';
+            this.transformerCtx.beginPath();
+            this.transformerCtx.moveTo(x, 120);
+            this.transformerCtx.lineTo(x, 140);
+            this.transformerCtx.stroke();
+            this.transformerCtx.strokeStyle = '#4CAF50';
+        });
+        
+        // Labels
+        this.transformerCtx.fillStyle = '#fff';
+        this.transformerCtx.font = '10px Arial';
+        this.transformerCtx.textAlign = 'center';
+        this.transformerCtx.fillText('7200V Grid', 150, 30);
+        this.transformerCtx.fillText('240V Split-Phase', 150, 180);
+    }
+    
+    drawSingleTransformer(x, y, label) {
+        // Primary coil (top)
+        this.transformerCtx.strokeStyle = '#ff9800';
+        this.transformerCtx.lineWidth = 2;
+        this.transformerCtx.beginPath();
+        this.transformerCtx.arc(x - 8, y - 20, 6, 0, 2 * Math.PI);
+        this.transformerCtx.arc(x, y - 20, 6, 0, 2 * Math.PI);
+        this.transformerCtx.arc(x + 8, y - 20, 6, 0, 2 * Math.PI);
+        this.transformerCtx.stroke();
+        
+        // Secondary coil (bottom)
+        this.transformerCtx.strokeStyle = '#4CAF50';
+        this.transformerCtx.lineWidth = 2;
+        this.transformerCtx.beginPath();
+        this.transformerCtx.arc(x - 8, y + 20, 6, 0, 2 * Math.PI);
+        this.transformerCtx.arc(x, y + 20, 6, 0, 2 * Math.PI);
+        this.transformerCtx.arc(x + 8, y + 20, 6, 0, 2 * Math.PI);
+        this.transformerCtx.stroke();
+        
+        // Core (center line)
+        this.transformerCtx.strokeStyle = '#888';
+        this.transformerCtx.lineWidth = 3;
+        this.transformerCtx.beginPath();
+        this.transformerCtx.moveTo(x - 20, y);
+        this.transformerCtx.lineTo(x + 20, y);
+        this.transformerCtx.stroke();
+        
+        // Center tap indicator
+        this.transformerCtx.fillStyle = '#2196F3';
+        this.transformerCtx.beginPath();
+        this.transformerCtx.arc(x, y + 20, 3, 0, 2 * Math.PI);
+        this.transformerCtx.fill();
+        
+        // Label
+        this.transformerCtx.fillStyle = '#fff';
+        this.transformerCtx.font = 'bold 12px Arial';
+        this.transformerCtx.textAlign = 'center';
+        this.transformerCtx.fillText(label, x, y + 50);
     }
 }
 
