@@ -1167,7 +1167,7 @@ class ACWaveformSimulator {
         
         // Scale up positions for larger canvas
         const scale = width / 300;
-        const centerY = height / 2;
+        const centerY = height / 2 + 20 * scale; // Shift down by 20 scale units
         
         // Draw three transformers with scaled positions
         this.drawSingleTransformer(70 * scale, centerY, 'T1');
@@ -1177,25 +1177,28 @@ class ACWaveformSimulator {
         // Draw 3-phase distribution lines (7200V) - each phase in its own color
         this.transformerCtx.lineWidth = 4; // Thicker for grid side
         
+        // Calculate distribution line position (shift down by 20 scale units)
+        const distributionY = 40 * scale + 20 * scale;
+        
         // Phase A (light gray like phasor diagram)
         this.transformerCtx.strokeStyle = '#cccccc';
         this.transformerCtx.beginPath();
-        this.transformerCtx.moveTo(10 * scale, 35 * scale);
-        this.transformerCtx.lineTo(280 * scale, 35 * scale);
+        this.transformerCtx.moveTo(10 * scale, distributionY - 5 * scale);
+        this.transformerCtx.lineTo(280 * scale, distributionY - 5 * scale);
         this.transformerCtx.stroke();
         
         // Phase B (red)
         this.transformerCtx.strokeStyle = '#ff4444';
         this.transformerCtx.beginPath();
-        this.transformerCtx.moveTo(10 * scale, 40 * scale);
-        this.transformerCtx.lineTo(280 * scale, 40 * scale);
+        this.transformerCtx.moveTo(10 * scale, distributionY);
+        this.transformerCtx.lineTo(280 * scale, distributionY);
         this.transformerCtx.stroke();
         
         // Phase C (blue)
         this.transformerCtx.strokeStyle = '#4444ff';
         this.transformerCtx.beginPath();
-        this.transformerCtx.moveTo(10 * scale, 45 * scale);
-        this.transformerCtx.lineTo(280 * scale, 45 * scale);
+        this.transformerCtx.moveTo(10 * scale, distributionY + 5 * scale);
+        this.transformerCtx.lineTo(280 * scale, distributionY + 5 * scale);
         this.transformerCtx.stroke();
         
         // Connections to transformers with phase labels
@@ -1207,8 +1210,8 @@ class ACWaveformSimulator {
             this.transformerCtx.strokeStyle = phaseColors[index];
             this.transformerCtx.lineWidth = 4; // Keep grid side thickness
             
-            // Get the correct Y position for each phase line
-            const phaseYPositions = [35 * scale, 40 * scale, 45 * scale]; // Gray, Red, Blue
+            // Get the correct Y position for each phase line (using the shifted positions)
+            const phaseYPositions = [distributionY - 5 * scale, distributionY, distributionY + 5 * scale]; // Gray, Red, Blue
             
             // Left line
             this.transformerCtx.beginPath();
@@ -1222,11 +1225,11 @@ class ACWaveformSimulator {
             this.transformerCtx.lineTo(x + 15 * scale, centerY - 20 * scale);
             this.transformerCtx.stroke();
             
-            // Add phase labels above the connection points
+            // Add phase labels above the connection points (shifted down)
             this.transformerCtx.fillStyle = '#fff';
             this.transformerCtx.font = `bold ${14 * scale}px Arial`;
             this.transformerCtx.textAlign = 'center';
-            this.transformerCtx.fillText(phases[index], x, 30 * scale); // Moved up to avoid overlapping lines
+            this.transformerCtx.fillText(phases[index], x, distributionY - 10 * scale);
         });
         
         // Low voltage output lines (240V split-phase)
@@ -1260,9 +1263,7 @@ class ACWaveformSimulator {
         this.transformerCtx.font = `${16 * scale}px Arial`;
         this.transformerCtx.textAlign = 'center';
         this.transformerCtx.fillText('7200V Grid Distribution', width / 2, 20 * scale);
-        this.transformerCtx.fillText('240V Split-Phase Service', width / 2, height - 30 * scale);
-        this.transformerCtx.font = `${12 * scale}px Arial`;
-        this.transformerCtx.fillText('(Customer/Subscriber Side)', width / 2, height - 15 * scale);
+        this.transformerCtx.fillText('240V Split Phase', width / 2, height - 15 * scale); // Moved down 15 units, removed "Service"
     }
     
     drawTransformerGrid() {
@@ -1343,7 +1344,7 @@ class ACWaveformSimulator {
         this.transformerCtx.fillStyle = '#fff';
         this.transformerCtx.font = `bold ${16 * scale}px Arial`;
         this.transformerCtx.textAlign = 'center';
-        this.transformerCtx.fillText(label, x, y + 50 * scale);
+        this.transformerCtx.fillText(label, x, y + 85 * scale); // Moved down 35 units total (from 50 to 85)
     }
 }
 

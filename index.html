@@ -258,7 +258,8 @@
         
         .viz-panel canvas {
             width: 100%;
-            height: 250px;
+            height: auto;
+            aspect-ratio: 1 / 1;
             background: #1a1a1a;
             border: 1px solid #333;
             border-radius: 4px;
@@ -289,16 +290,30 @@
         
         <div class="simulator-grid">
             <div class="waveform-section">
-                <h2>Split-Phase Visualization</h2>
+                <div class="tooltip-container">
+                    <h2>Split-Phase Visualization</h2>
+                    <div class="tooltip">
+                        <div class="tooltip-title">Split-Phase Electrical System Output</div>
+                        <div class="tooltip-description">Real-time oscilloscope view of 240V/120V split-phase power delivered to your home or RV.</div>
+                        <div class="tooltip-technical">This shows the actual electrical waveforms you get from ONE distribution transformer (like T1, T2, or T3). The green L1 and orange L2 are "hot" conductors that are 180° out of phase, giving you 240V between them and 120V from each to neutral (white). This is the final step in the power delivery chain - what actually powers your home, RV, or business after traveling from power plants through high-voltage transmission lines and being stepped down by distribution transformers.</div>
+                    </div>
+                </div>
                 <canvas id="waveform-canvas"></canvas>
                 
                 <!-- Grid and Transformer Visualizations -->
                 <div class="sub-visualizations">
                     <div class="viz-panel">
-                        <h3>3-Phase Grid Source</h3>
+                        <div class="tooltip-container">
+                            <h3>3-Phase Grid Source</h3>
+                            <div class="tooltip">
+                                <div class="tooltip-title">3-Phase Power Generation and Transmission</div>
+                                <div class="tooltip-description">Shows the 3-phase electrical power as it comes from power plants through high-voltage transmission lines.</div>
+                                <div class="tooltip-technical">Power plants generate electricity in 3 phases (A, B, C) that are 120° apart for maximum efficiency. This 3-phase power travels hundreds of miles on high-voltage transmission lines (69kV-765kV) to substations. At distribution voltage (typically 7200V), the three phases feed distribution transformers in neighborhoods. Each phase powers different transformers to balance the electrical load across the grid. This phasor diagram shows how the three phases relate to each other - they're perfectly balanced and create a smooth, efficient power delivery system.</div>
+                            </div>
+                        </div>
                         <canvas id="phasor-canvas"></canvas>
                         <div class="viz-labels">
-                            <div class="phase-label" style="color: #000;">Phase A: 7200V (Black)</div>
+                            <div class="phase-label" style="color: #cccccc;">Phase A: 7200V (Gray)</div>
                             <div class="phase-label" style="color: #ff4444;">Phase B: 7200V (Red)</div>
                             <div class="phase-label" style="color: #4444ff;">Phase C: 7200V (Blue)</div>
                         </div>
@@ -311,7 +326,14 @@
                     </div>
                     
                     <div class="viz-panel">
-                        <h3>Distribution Transformers</h3>
+                        <div class="tooltip-container">
+                            <h3>Distribution Transformers</h3>
+                            <div class="tooltip">
+                                <div class="tooltip-title">Neighborhood Distribution System</div>
+                                <div class="tooltip-description">Shows how 3-phase grid power is converted to split-phase residential and commercial service.</div>
+                                <div class="tooltip-technical">Each distribution transformer takes ONE phase from the 3-phase grid (7200V) and steps it down to split-phase service (240V/120V). The transformer has a center-tapped secondary winding that creates two 120V "hot" legs (L1 and L2) that are 180° out of phase, plus a neutral. This gives homes both 120V (hot to neutral) for lights and outlets, and 240V (hot to hot) for large appliances like dryers and air conditioners. Multiple transformers in a neighborhood are fed from different phases (A, B, C) to balance the electrical load. The main split-phase visualization shows the output from just ONE of these transformers.</div>
+                            </div>
+                        </div>
                         <canvas id="transformer-canvas"></canvas>
                         <div class="viz-labels">
                             <div class="transformer-label">Distribution → Service</div>
