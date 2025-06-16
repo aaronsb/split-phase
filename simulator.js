@@ -1023,12 +1023,19 @@ class ACWaveformSimulator {
         this.transformerCtx.lineTo(280, 40);
         this.transformerCtx.stroke();
         
-        // Connections to transformers
-        [70, 150, 230].forEach(x => {
+        // Connections to transformers with phase labels
+        const phases = ['P1', 'P2', 'P3'];
+        [70, 150, 230].forEach((x, index) => {
             this.transformerCtx.beginPath();
             this.transformerCtx.moveTo(x, 40);
             this.transformerCtx.lineTo(x, 60);
             this.transformerCtx.stroke();
+            
+            // Add phase labels above the connection points
+            this.transformerCtx.fillStyle = '#fff';
+            this.transformerCtx.font = 'bold 10px Arial';
+            this.transformerCtx.textAlign = 'center';
+            this.transformerCtx.fillText(phases[index], x, 35);
         });
         
         // Low voltage output lines (240V split-phase)
@@ -1061,8 +1068,9 @@ class ACWaveformSimulator {
         this.transformerCtx.fillStyle = '#fff';
         this.transformerCtx.font = '10px Arial';
         this.transformerCtx.textAlign = 'center';
-        this.transformerCtx.fillText('7200V Grid', 150, 30);
-        this.transformerCtx.fillText('240V Split-Phase', 150, 180);
+        this.transformerCtx.fillText('7200V Grid Distribution', 150, 20);
+        this.transformerCtx.fillText('240V Split-Phase Service', 150, 175);
+        this.transformerCtx.fillText('(Customer/Subscriber Side)', 150, 185);
     }
     
     drawSingleTransformer(x, y, label) {
