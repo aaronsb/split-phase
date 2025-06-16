@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AC Waveform & Inverter Simulator</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #4CAF50;
+            margin-bottom: 30px;
+        }
+        
+        .simulator-grid {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .waveform-section {
+            background: #2a2a2a;
+            border-radius: 10px;
+            padding: 20px;
+            border: 2px solid #333;
+        }
+        
+        .controls-section {
+            background: #2a2a2a;
+            border-radius: 10px;
+            padding: 20px;
+            border: 2px solid #333;
+        }
+        
+        canvas {
+            width: 100%;
+            height: 400px;
+            background: #000;
+            border: 1px solid #555;
+            border-radius: 5px;
+        }
+        
+        .control-group {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #333;
+            border-radius: 8px;
+        }
+        
+        .control-group h3 {
+            margin: 0 0 15px 0;
+            color: #4CAF50;
+            font-size: 16px;
+        }
+        
+        .control-item {
+            margin-bottom: 12px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+            color: #ccc;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            margin-bottom: 5px;
+        }
+        
+        input[type="checkbox"] {
+            margin-right: 8px;
+        }
+        
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        
+        button:hover {
+            background: #45a049;
+        }
+        
+        button.danger {
+            background: #f44336;
+        }
+        
+        button.danger:hover {
+            background: #da190b;
+        }
+        
+        .value-display {
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        
+        .status-panel {
+            background: #2a2a2a;
+            border-radius: 10px;
+            padding: 20px;
+            border: 2px solid #333;
+        }
+        
+        .parameter-display {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .param-item {
+            background: #333;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        
+        .param-label {
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 5px;
+        }
+        
+        .param-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        
+        .warning {
+            background: #ff9800;
+            color: #000;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        
+        .danger-zone {
+            background: #f44336;
+            color: #fff;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        
+        /* Tooltip System */
+        .tooltip-container {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .tooltip {
+            position: absolute;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1a1a1a;
+            border: 2px solid #4CAF50;
+            border-radius: 8px;
+            padding: 10px;
+            color: #fff;
+            font-size: 12px;
+            line-height: 1.4;
+            white-space: nowrap;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            max-width: 300px;
+            white-space: normal;
+        }
+        
+        .tooltip.detailed {
+            max-width: 500px;
+            min-width: 350px;
+            white-space: normal;
+        }
+        
+        .tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-top-color: #4CAF50;
+        }
+        
+        .tooltip-container:hover .tooltip {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .tooltip-title {
+            font-weight: bold;
+            color: #4CAF50;
+            margin-bottom: 5px;
+            font-size: 13px;
+        }
+        
+        .tooltip-description {
+            color: #ccc;
+            margin-bottom: 8px;
+        }
+        
+        .tooltip-technical {
+            color: #aaa;
+            font-size: 11px;
+            border-top: 1px solid #444;
+            padding-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AC Waveform & Inverter Simulator</h1>
+        
+        <div class="simulator-grid">
+            <div class="waveform-section">
+                <h2>Split-Phase Visualization</h2>
+                <canvas id="waveform-canvas"></canvas>
+            </div>
+            
+            <div class="controls-section">
+                <div class="control-group">
+                    <h3>Basic Parameters</h3>
+                    <div class="control-item" style="background: #333; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+                        <label style="font-size: 14px; color: #4CAF50; font-weight: bold;">
+                            <input type="checkbox" id="detailed-tooltips" style="margin-right: 8px;">
+                            Show Detailed Tooltips
+                        </label>
+                    </div>
+                    <div class="control-item">
+                        <div class="tooltip-container">
+                            <label>
+                                <input type="checkbox" id="split-phase-mode" checked>
+                                Split-Phase Mode (L1/L2 + Neutral)
+                            </label>
+                            <div class="tooltip">
+                                <div class="tooltip-title">Split-Phase Electrical System</div>
+                                <div class="tooltip-description">Enables/disables North American split-phase visualization showing both L1 and L2 hot legs.</div>
+                                <div class="tooltip-technical">L1 and L2 are 180° out of phase. L1-L2 = 240V, L1-N = L2-N = 120V RMS. This is the standard residential electrical system in North America and many RV parks. Essential for understanding shore power connections and inverter systems in RVs and off-grid installations.</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="control-item tooltip-container">
+                        <label for="frequency">Frequency: <span id="freq-value" class="value-display">60 Hz</span></label>
+                        <input type="range" id="frequency" min="50" max="60" value="60" step="1">
+                        <div class="tooltip">
+                            <div class="tooltip-title">AC Frequency</div>
+                            <div class="tooltip-description">The rate at which AC voltage alternates direction.</div>
+                            <div class="tooltip-technical">60 Hz = North America standard (grid power, shore power, most RV inverters). 50 Hz = European/International standard. Wrong frequency affects: AC motors run 20% slower/faster (60Hz motor on 50Hz runs slow, overheats). Linear transformers operate inefficiently, can overheat or saturate. Modern switching power supplies (look for "50-60Hz, 120-240V input") are usually tolerant of frequency/voltage variations. Old linear supplies and motor-driven devices (fans, pumps, compressors) are sensitive to frequency changes.</div>
+                        </div>
+                    </div>
+                    <div class="control-item tooltip-container">
+                        <label for="amplitude">Peak Voltage: <span id="amp-value" class="value-display">170 V</span></label>
+                        <input type="range" id="amplitude" min="50" max="200" value="170" step="5">
+                        <div id="voltage-standard" class="voltage-indicator" style="margin-top: 5px; font-size: 11px; color: #4CAF50; font-weight: bold;">
+                            ✓ North American Standard (120V RMS Split-Phase)
+                        </div>
+                        <div class="tooltip">
+                            <div class="tooltip-title">Peak Voltage</div>
+                            <div class="tooltip-description">Maximum voltage amplitude of the AC sine wave.</div>
+                            <div class="tooltip-technical">170V peak = 120V RMS (170÷√2). Peak-to-peak = 340V. Wrong voltage causes specific failures: Low voltage (brownouts) - motors overheat trying to maintain power, contactors may not close, LED drivers flicker. High voltage - capacitor dielectric breakdown (pop/smoke), incandescent bulbs burn out quickly, electronics exceed voltage ratings and fail. Inverter components must handle peak voltages (170V), not just RMS (120V) - this is why cheap inverters fail.</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <h3>DC Offset & Grounding</h3>
+                    <div class="control-item tooltip-container">
+                        <label for="dc-offset">DC Offset: <span id="offset-value" class="value-display">0 V</span></label>
+                        <input type="range" id="dc-offset" min="-50" max="100" value="0" step="5">
+                        <div class="tooltip">
+                            <div class="tooltip-title">DC Offset Voltage</div>
+                            <div class="tooltip-description">Shifts the AC waveform up or down from zero reference.</div>
+                            <div class="tooltip-technical">DC offset causes: Transformers saturate and overheat, AC motors experience increased vibration and bearing wear, capacitors in power supplies stress and fail prematurely. When chassis grounding is disabled, DC offset elevates "neutral" voltage - touching neutral and ground simultaneously creates shock hazard. Switch-mode power supplies may malfunction as their reference point shifts.</div>
+                        </div>
+                    </div>
+                    <div class="control-item">
+                        <div class="tooltip-container">
+                            <label>
+                                <input type="checkbox" id="chassis-ground" checked>
+                                Chassis Ground Bond
+                            </label>
+                            <div class="tooltip">
+                                <div class="tooltip-title">Chassis Grounding</div>
+                                <div class="tooltip-description">Bonds the DC reference to chassis ground for safety.</div>
+                                <div class="tooltip-technical">Without proper grounding: Metal appliance cases become energized (shock/electrocution risk), GFCI outlets malfunction or refuse to reset, surge protectors can't function properly, static electricity builds up damaging electronics. Ground faults can't clear safely - instead of tripping breakers, current finds alternate paths through people or equipment. In RVs: chassis must bond to shore ground. Off-grid: requires proper grounding rod system and bonding of all metal systems.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <h3>Fault Simulation</h3>
+                    <button id="reset-btn">Reset All Faults</button>
+                    
+                    <div class="control-item tooltip-container">
+                        <label for="fault-type">Fault Type:</label>
+                        <select id="fault-type" style="width: 100%; margin-bottom: 10px; padding: 5px; background: #444; color: #fff; border: 1px solid #666;">
+                            <option value="none">No Fault</option>
+                            <optgroup label="120V Load Faults">
+                                <option value="motor-start-l1">Motor Startup (L1-N)</option>
+                                <option value="motor-start-l2">Motor Startup (L2-N)</option>
+                                <option value="resistive-switch-l1">Resistive Load Switch (L1-N)</option>
+                                <option value="resistive-switch-l2">Resistive Load Switch (L2-N)</option>
+                                <option value="arc-fault-l1">Arc Fault (L1-N)</option>
+                                <option value="arc-fault-l2">Arc Fault (L2-N)</option>
+                            </optgroup>
+                            <optgroup label="240V Load Faults">
+                                <option value="motor-start-240v">Heavy Motor Startup (L1-L2)</option>
+                                <option value="ac-compressor">A/C Compressor Start (L1-L2)</option>
+                                <option value="arc-fault-240v">Arc Fault (L1-L2)</option>
+                                <option value="imbalanced-240v">Imbalanced 240V Load</option>
+                            </optgroup>
+                            <optgroup label="System Faults">
+                                <option value="neutral-loss">Neutral Loss</option>
+                                <option value="phase-imbalance">Phase Imbalance</option>
+                                <option value="ground-fault">Ground Fault</option>
+                                <option value="harmonic-distortion">Harmonic Distortion</option>
+                            </optgroup>
+                            <optgroup label="Inverter Faults">
+                                <option value="mosfet-failure">MOSFET Failure</option>
+                                <option value="transformer-saturation">Transformer Saturation</option>
+                                <option value="dc-injection">DC Injection</option>
+                                <option value="feedback-oscillation">Feedback Oscillation</option>
+                            </optgroup>
+                        </select>
+                        <div class="tooltip">
+                            <div class="tooltip-title">Electrical Fault Types</div>
+                            <div class="tooltip-description">Simulates various real-world electrical faults and load conditions common in RV and off-grid systems.</div>
+                            <div class="tooltip-technical">Motor startups cause voltage sags that dim LED lights, reset digital clocks, cause microwave displays to flicker. Arc faults create RF interference (affects radios, TV reception), carbonize wiring insulation, create fire hazards. Neutral loss makes 120V loads see 240V - LED drivers explode, phone chargers smoke, computers shut down on overvoltage protection. Phase imbalance causes single-phase motors to overheat, three-phase equipment to vibrate excessively. Harmonic distortion makes transformers buzz loudly, causes neutral wires to overheat even with balanced loads.</div>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                        <button id="trigger-fault-btn" style="flex: 1;">Trigger Selected Fault</button>
+                        <button id="clear-faults-btn" style="flex: 1;" class="danger">Clear All Faults</button>
+                    </div>
+                    
+                    <div class="control-item">
+                        <label for="fault-intensity">Fault Intensity: <span id="fault-intensity-value" class="value-display">50%</span></label>
+                        <input type="range" id="fault-intensity" min="10" max="100" value="50" step="10">
+                    </div>
+                    
+                    <div class="control-item">
+                        <label>Active Faults:</label>
+                        <div id="active-faults-list" style="background: #222; border: 1px solid #444; border-radius: 5px; padding: 8px; max-height: 120px; overflow-y: auto; font-size: 11px;">
+                            <div style="color: #888; font-style: italic;">No active faults</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <h3>Oscilloscope Controls</h3>
+                    <button id="play-pause-btn">Pause</button>
+                    <div class="control-item tooltip-container">
+                        <label>Trigger Mode:</label>
+                        <div style="margin-top: 8px;">
+                            <label style="display: block; margin-bottom: 5px; font-size: 14px;">
+                                <input type="radio" name="trigger-mode" value="none" style="margin-right: 8px;">
+                                No Trigger (Free Running)
+                            </label>
+                            <label style="display: block; margin-bottom: 5px; font-size: 14px;">
+                                <input type="radio" name="trigger-mode" value="auto" checked style="margin-right: 8px;">
+                                Auto Trigger (Edge Lock)
+                            </label>
+                            <label style="display: block; margin-bottom: 5px; font-size: 14px;">
+                                <input type="radio" name="trigger-mode" value="manual" style="margin-right: 8px;">
+                                Manual Trigger
+                            </label>
+                        </div>
+                        <div class="tooltip">
+                            <div class="tooltip-title">Oscilloscope Trigger Modes</div>
+                            <div class="tooltip-description">Controls how the waveform display is synchronized.</div>
+                            <div class="tooltip-technical">No Trigger: Waveform scrolls left-to-right like analog scope without trigger. Auto Trigger: Locks display to voltage crossing point for stable view. Manual Trigger: User controls phase position to verify real-time simulation and study specific waveform points.</div>
+                        </div>
+                    </div>
+                    <div class="control-item tooltip-container" id="trigger-level-control">
+                        <label for="trigger-level">Trigger Level: <span id="trigger-level-value" class="value-display">0 V</span></label>
+                        <input type="range" id="trigger-level" min="-50" max="50" value="0" step="5">
+                        <div class="tooltip">
+                            <div class="tooltip-title">Auto Trigger Level</div>
+                            <div class="tooltip-description">Voltage level where auto trigger locks the display.</div>
+                            <div class="tooltip-technical">Trigger occurs on rising edge when waveform crosses this voltage. 0V = zero crossing trigger. Useful for studying specific voltage thresholds or DC offset effects on triggering.</div>
+                        </div>
+                    </div>
+                    <div class="control-item tooltip-container" id="manual-trigger-control" style="display: none;">
+                        <label for="manual-trigger">Manual Trigger Position: <span id="manual-trigger-value" class="value-display">0°</span></label>
+                        <input type="range" id="manual-trigger" min="-180" max="180" value="0" step="1">
+                        <div style="font-size: 10px; color: #aaa; margin-top: 5px;">
+                            Move slider to verify real-time simulation
+                        </div>
+                        <div class="tooltip">
+                            <div class="tooltip-title">Manual Trigger Position</div>
+                            <div class="tooltip-description">Manually control the phase position of the displayed waveform.</div>
+                            <div class="tooltip-technical">Adjusts display phase from -180° to +180°. Proves real-time simulation - move slider and waveform shifts instantly. 0° = sine wave positive-going zero crossing at center. Use to examine specific waveform features or fault conditions at precise phase angles.</div>
+                        </div>
+                    </div>
+                    <div class="control-item tooltip-container">
+                        <label for="sim-speed">Time Base: <span id="speed-value" class="value-display">1.0x</span></label>
+                        <input type="range" id="sim-speed" min="0.01" max="5" value="1" step="0.01">
+                        <div class="tooltip">
+                            <div class="tooltip-title">Simulation Time Base</div>
+                            <div class="tooltip-description">Controls the speed of the simulation relative to real-time.</div>
+                            <div class="tooltip-technical">1.0x = real-time. 0.01x = ultra-slow motion (1% speed) for detailed fault analysis. 5x = 5x faster for observing long-term behaviors. Allows studying transients, startup sequences, and fault progression at different time scales.</div>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 5px; margin-top: 10px;">
+                        <button id="ultra-slow-btn" style="font-size: 12px; padding: 5px 8px;">0.01x</button>
+                        <button id="slow-btn" style="font-size: 12px; padding: 5px 8px;">0.1x</button>
+                        <button id="normal-btn" style="font-size: 12px; padding: 5px 8px;">1x</button>
+                        <button id="fast-btn" style="font-size: 12px; padding: 5px 8px;">3x</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="status-panel">
+            <h3>Real-time Parameters</h3>
+            <div id="safety-alerts"></div>
+            <div class="parameter-display">
+                <div class="param-item tooltip-container">
+                    <div class="param-label">Peak to Peak</div>
+                    <div class="param-value" id="peak-to-peak">340 V</div>
+                    <div class="tooltip">
+                        <div class="tooltip-title">Peak-to-Peak Voltage</div>
+                        <div class="tooltip-description">Total voltage swing from positive peak to negative peak.</div>
+                        <div class="tooltip-technical">Peak-to-Peak = 2 × Peak Amplitude. For 170V peak sine wave: 340V peak-to-peak. This represents the maximum voltage difference that can appear across a load or between measurement points.</div>
+                    </div>
+                </div>
+                <div class="param-item tooltip-container">
+                    <div class="param-label">RMS Voltage</div>
+                    <div class="param-value" id="rms-voltage">120.2 V</div>
+                    <div class="tooltip">
+                        <div class="tooltip-title">RMS (Root Mean Square) Voltage</div>
+                        <div class="tooltip-description">Effective voltage value equivalent to DC for power calculations.</div>
+                        <div class="tooltip-technical">RMS = Peak ÷ √2. This is what your multimeter measures and what device nameplates specify. Devices fail when RMS voltage is wrong: Motors rated for 120V RMS will overheat and burn out on 140V RMS, while struggling to start and running hot on 100V RMS. Heating elements produce wrong heat output (resistance heating follows V²/R). Most electronics have ±10% voltage tolerance before malfunction or damage.</div>
+                    </div>
+                </div>
+                <div class="param-item tooltip-container">
+                    <div class="param-label">Zero Crossing</div>
+                    <div class="param-value" id="zero-crossing">0 V</div>
+                    <div class="tooltip">
+                        <div class="tooltip-title">Zero Crossing Voltage</div>
+                        <div class="tooltip-description">The voltage level where the AC waveform crosses zero.</div>
+                        <div class="tooltip-technical">Should be 0V when properly grounded. DC offset or floating ground can shift this dangerous levels. When chassis grounding is disabled, DC offset directly affects zero crossing. Critical for safety - elevated zero crossing means "neutral" is no longer at ground potential.</div>
+                    </div>
+                </div>
+                <div class="param-item">
+                    <div class="param-label">Max Positive</div>
+                    <div class="param-value" id="max-positive">+170 V</div>
+                </div>
+                <div class="param-item">
+                    <div class="param-label">Max Negative</div>
+                    <div class="param-value" id="max-negative">-170 V</div>
+                </div>
+                <div class="param-item">
+                    <div class="param-label">Ground State</div>
+                    <div class="param-value" id="ground-state">Bonded</div>
+                </div>
+                <div class="param-item">
+                    <div class="param-label">Sim Time</div>
+                    <div class="param-value" id="sim-time">0.00s</div>
+                </div>
+                <div class="param-item">
+                    <div class="param-label">Time Rate</div>
+                    <div class="param-value" id="time-rate">1.0x</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="simulator.js"></script>
+</body>
+</html>
