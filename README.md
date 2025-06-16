@@ -63,6 +63,10 @@ Perfect for understanding:
 - `simulator.js` - Core simulation engine and fault modeling
 - `README.md` - This documentation
 
+## Live Demo
+
+🚀 **[Try the live simulator here!](https://aaronsb.github.io/split-phase/)**
+
 ## License
 
 Open source educational tool for learning electrical systems.
