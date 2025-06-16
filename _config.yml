@@ -1,0 +1,32 @@
+# Jekyll configuration for Split-Phase AC Simulator
+title: "AC Waveform & Inverter Simulator"
+description: "Interactive educational tool for understanding AC electrical systems, split-phase power, and electrical faults"
+url: "https://aaronsb.github.io"
+baseurl: "/split-phase"
+
+# Build settings
+markdown: kramdown
+plugins:
+  - jekyll-feed
+  - jekyll-sitemap
+
+# Exclude files from processing
+exclude:
+  - .github/
+  - .gitignore
+  - README.md
+
+# Include files that would normally be excluded
+include:
+  - simulator.js
+
+# Collections and defaults
+defaults:
+  - scope:
+      path: ""
+      type: "pages"
+    values:
+      layout: "default"
+
+# Theme (optional - using none for custom HTML)
+theme: null
