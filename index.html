@@ -258,7 +258,7 @@
         
         .viz-panel canvas {
             width: 100%;
-            height: 200px;
+            height: 250px;
             background: #1a1a1a;
             border: 1px solid #333;
             border-radius: 4px;
@@ -480,39 +480,38 @@
                     </div>
                     <div class="control-item tooltip-container" id="trigger-level-control">
                         <label for="trigger-level">Trigger Level: <span id="trigger-level-value" class="value-display">0 V</span></label>
-                        <input type="range" id="trigger-level" min="-50" max="50" value="0" step="5">
+                        <input type="range" id="trigger-level" min="-100" max="100" value="0" step="5">
                         <div class="tooltip">
-                            <div class="tooltip-title">Auto Trigger Level</div>
-                            <div class="tooltip-description">Voltage level where auto trigger locks the display.</div>
-                            <div class="tooltip-technical">Trigger occurs on rising edge when waveform crosses this voltage. 0V = zero crossing trigger. Useful for studying specific voltage thresholds or DC offset effects on triggering.</div>
+                            <div class="tooltip-title">Trigger Level Control</div>
+                            <div class="tooltip-description">Voltage level where trigger locks the display (Auto) or sets trigger point (Manual).</div>
+                            <div class="tooltip-technical">Auto Mode: Trigger occurs on rising edge when waveform crosses this voltage. Manual Mode: Sets the voltage reference point for manual trigger control. Range: ±100V to handle peak voltages up to 300V. 0V = zero crossing trigger. Useful for studying specific voltage thresholds, DC offset effects, or isolating fault conditions at specific voltage levels.</div>
                         </div>
                     </div>
                     <div class="control-item tooltip-container" id="manual-trigger-control" style="display: none;">
-                        <label for="manual-trigger">Manual Trigger Position: <span id="manual-trigger-value" class="value-display">0°</span></label>
-                        <input type="range" id="manual-trigger" min="-180" max="180" value="0" step="1">
+                        <label for="manual-trigger">Manual Trigger Voltage: <span id="manual-trigger-value" class="value-display">0 V</span></label>
+                        <input type="range" id="manual-trigger" min="-100" max="100" value="0" step="1">
                         <div style="font-size: 10px; color: #aaa; margin-top: 5px;">
-                            Move slider to verify real-time simulation
+                            Adjust trigger voltage like a real oscilloscope
                         </div>
                         <div class="tooltip">
-                            <div class="tooltip-title">Manual Trigger Position</div>
-                            <div class="tooltip-description">Manually control the phase position of the displayed waveform.</div>
-                            <div class="tooltip-technical">Adjusts display phase from -180° to +180°. Proves real-time simulation - move slider and waveform shifts instantly. 0° = sine wave positive-going zero crossing at center. Use to examine specific waveform features or fault conditions at precise phase angles.</div>
+                            <div class="tooltip-title">Manual Trigger Voltage</div>
+                            <div class="tooltip-description">Set the exact voltage level for manual triggering like a real oscilloscope.</div>
+                            <div class="tooltip-technical">Range: ±100V to handle systems up to 300V peak. Trigger locks display when waveform crosses this voltage on rising edge. Move slider to see immediate response - proves real-time simulation. Use to examine specific voltage levels during faults, startup transients, or normal operation. Essential for troubleshooting voltage-sensitive equipment issues.</div>
                         </div>
                     </div>
                     <div class="control-item tooltip-container">
-                        <label for="sim-speed">Time Base: <span id="speed-value" class="value-display">1.0x</span></label>
-                        <input type="range" id="sim-speed" min="0.01" max="5" value="1" step="0.01">
+                        <label for="sim-speed">Simulation Speed: <span id="speed-value" class="value-display">1.000x</span></label>
+                        <input type="range" id="sim-speed" min="0" max="100" value="100" step="1">
                         <div class="tooltip">
-                            <div class="tooltip-title">Simulation Time Base</div>
-                            <div class="tooltip-description">Controls the speed of the simulation relative to real-time.</div>
-                            <div class="tooltip-technical">1.0x = real-time. 0.01x = ultra-slow motion (1% speed) for detailed fault analysis. 5x = 5x faster for observing long-term behaviors. Allows studying transients, startup sequences, and fault progression at different time scales.</div>
+                            <div class="tooltip-title">Simulation Speed Control (Logarithmic)</div>
+                            <div class="tooltip-description">Controls the speed of the entire simulation relative to real-time using a logarithmic scale.</div>
+                            <div class="tooltip-technical">Logarithmic scale from 0.001x to 1.0x for better control at slow speeds. 1.0x = real-time speed. 0.001x = ultra-slow motion (0.1% speed, 1 rotation per 16.7 seconds) for detailed educational demonstrations. 0.01x = very slow motion for fault analysis. 0.1x = slow motion for observing transients. Most of the slider range is dedicated to educationally useful slow speeds.</div>
                         </div>
                     </div>
                     <div style="display: flex; gap: 5px; margin-top: 10px;">
-                        <button id="ultra-slow-btn" style="font-size: 12px; padding: 5px 8px;">0.01x</button>
+                        <button id="ultra-slow-btn" style="font-size: 12px; padding: 5px 8px;">0.001x</button>
                         <button id="slow-btn" style="font-size: 12px; padding: 5px 8px;">0.1x</button>
                         <button id="normal-btn" style="font-size: 12px; padding: 5px 8px;">1x</button>
-                        <button id="fast-btn" style="font-size: 12px; padding: 5px 8px;">3x</button>
                     </div>
                 </div>
             </div>
